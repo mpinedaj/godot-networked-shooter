@@ -220,7 +220,7 @@ func _process(delta: float) -> void:
 		# necesita saber nada de la cámara del cliente.
 		var world: Vector3 = cam.get_yaw_basis() * Vector3(local.x, 0, local.y)
 		move = Vector2(world.x, world.z)
-		aim = cam.yaw  # El personaje mira hacia donde mira la cámara.
+		aim = _crosshair_aim(cam)
 		shoot = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and cam.is_mouse_captured() and get_window().has_focus()
 
 	if multiplayer.is_server():
@@ -229,8 +229,24 @@ func _process(delta: float) -> void:
 	else:
 		# Cliente -> servidor. Solo se envía la intención, nunca la posición.
 		receive_input.rpc_id(1, move, aim, shoot)
-		# Predicción visual mínima: girar hacia la cámara sin esperar al servidor.
+		# Predicción visual mínima: girar hacia la mira sin esperar al servidor.
 		visual.rotation.y = aim
+
+## Ángulo hacia lo que hay bajo la mira (centro de pantalla). Como la cámara va
+## sobre el hombro, disparar en paralelo a ella fallaría: apuntamos al punto
+## donde el rayo de la cámara choca (jugador, caja o muro).
+func _crosshair_aim(cam: Camera3D) -> float:
+	var from := cam.global_position
+	var to := from - cam.global_basis.z * 60.0
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var target: Vector3 = to if hit.is_empty() else hit.position
+	var d := target - global_position
+	d.y = 0
+	if d.length() < 1.0:
+		return cam.yaw  # Objetivo pegado al jugador: usar la dirección de la cámara.
+	return atan2(-d.x, -d.z)
 
 @rpc("any_peer", "call_remote", "unreliable_ordered", 0)
 func receive_input(move: Vector2, aim: float, shoot: bool) -> void:
