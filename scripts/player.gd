@@ -61,9 +61,15 @@ var _last_pos: Vector3 = Vector3.ZERO
 @onready var collision: CollisionShape3D = $CollisionShape3D
 @onready var name_label: Label3D = $NameLabel
 
+## Barra de vida sobre la cabeza (dos quads que siempre miran a la cámara).
+const BAR_SIZE := Vector2(0.9, 0.12)
+const BAR_HEIGHT := 1.95
+var _bar_fill: MeshInstance3D = null
+
 func _ready() -> void:
 	set_multiplayer_authority(1)
 	_build_visual()
+	_build_health_bar()
 	_last_pos = global_position
 	_apply_dead_state()
 	_update_label()
@@ -116,6 +122,42 @@ func _build_visual() -> void:
 	ring.material_override = mat
 	add_child(ring)
 
+func _build_health_bar() -> void:
+	var bg := _make_bar_quad(Color(0, 0, 0, 0.75), BAR_SIZE + Vector2(0.04, 0.04), 0)
+	bg.position.y = BAR_HEIGHT
+	add_child(bg)
+	_bar_fill = _make_bar_quad(Color(0.3, 0.9, 0.3), BAR_SIZE, 1)
+	_bar_fill.position.y = BAR_HEIGHT
+	add_child(_bar_fill)
+
+func _make_bar_quad(color: Color, size: Vector2, priority: int) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = size
+	mi.mesh = quad
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_keep_scale = true
+	mat.no_depth_test = true
+	mat.render_priority = priority  # El relleno se dibuja encima del fondo.
+	mat.albedo_color = color
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+func _update_health_bar() -> void:
+	if _bar_fill == null:
+		return
+	var ratio := clampf(float(health) / MAX_HEALTH, 0.0, 1.0)
+	_bar_fill.visible = ratio > 0.0
+	_bar_fill.scale.x = maxf(ratio, 0.001)
+	# La cámara no gira en Y, así que X del mundo = horizontal en pantalla:
+	# desplazamos el relleno para que la barra se vacíe de derecha a izquierda.
+	_bar_fill.position.x = -(1.0 - ratio) * BAR_SIZE.x / 2
+	(_bar_fill.material_override as StandardMaterial3D).albedo_color = Color(0.9, 0.25, 0.2).lerp(Color(0.3, 0.9, 0.3), ratio)
+
 func _play_section(running: bool) -> void:
 	if anim_player == null:
 		return
@@ -139,8 +181,8 @@ func _update_animation(delta: float) -> void:
 func _update_label() -> void:
 	if name_label == null:
 		return
-	var txt := get_display_name() + (" - Tú" if is_local() else "")
-	name_label.text = "%s\n%d HP" % [txt, health]
+	name_label.text = get_display_name() + (" - Tú" if is_local() else "")
+	_update_health_bar()
 	name_label.modulate = Color.WHITE if is_local() else get_color().lightened(0.3)
 
 func _apply_dead_state() -> void:
