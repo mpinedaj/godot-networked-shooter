@@ -9,6 +9,12 @@ const MENU_SCENE := "res://scenes/main_menu.tscn"
 const HALF := Vector2(12, 7)
 const WALL_THICKNESS := 0.6
 const WALL_HEIGHT := 1.5
+const CRATE_SIZE := 1.2
+## Modelos del escenario y su tamaño original (medido del FBX importado).
+const WALL_MODEL := "res://Assets/Environment/Wall_01.fbx"
+const WALL_MODEL_SIZE := Vector3(4.0, 2.4, 0.3)
+const BOX_MODEL := "res://Assets/Environment/Box_01.fbx"
+const BOX_MODEL_SIZE := 0.743
 ## Cámara: sigue al jugador local desde arriba y un poco atrás.
 const CAM_OFFSET := Vector3(0, 9.5, 6.5)
 const CAM_LOOK_HEIGHT := 0.8
@@ -70,16 +76,16 @@ func _build_map() -> void:
 	var walls := Node3D.new()
 	walls.name = "Walls"
 	map_node.add_child(walls)
-	# Bordes.
+	# Bordes: muros Wall_01 repetidos a lo largo de cada lado.
 	var t := WALL_THICKNESS
 	var long := HALF.x * 2 + t * 2
 	var short := HALF.y * 2
-	walls.add_child(_make_block(Vector3(0, 0, -HALF.y - t / 2), Vector3(long, WALL_HEIGHT, t), Color(0.35, 0.35, 0.4)))
-	walls.add_child(_make_block(Vector3(0, 0, HALF.y + t / 2), Vector3(long, WALL_HEIGHT, t), Color(0.35, 0.35, 0.4)))
-	walls.add_child(_make_block(Vector3(-HALF.x - t / 2, 0, 0), Vector3(t, WALL_HEIGHT, short), Color(0.35, 0.35, 0.4)))
-	walls.add_child(_make_block(Vector3(HALF.x + t / 2, 0, 0), Vector3(t, WALL_HEIGHT, short), Color(0.35, 0.35, 0.4)))
+	walls.add_child(_make_wall(Vector3(0, 0, -HALF.y - t / 2), long, false))
+	walls.add_child(_make_wall(Vector3(0, 0, HALF.y + t / 2), long, false))
+	walls.add_child(_make_wall(Vector3(-HALF.x - t / 2, 0, 0), short, true))
+	walls.add_child(_make_wall(Vector3(HALF.x + t / 2, 0, 0), short, true))
 
-	# Obstáculos con semilla fija: todos los peers generan exactamente los mismos.
+	# Obstáculos (cajas Box_01) con semilla fija: todos los peers generan los mismos.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 12345
 	var placed := 0
@@ -87,7 +93,11 @@ func _build_map() -> void:
 		var pos := Vector3(rng.randf_range(-HALF.x + 1.5, HALF.x - 1.5), 0, rng.randf_range(-HALF.y + 1.5, HALF.y - 1.5))
 		if _near_spawn(pos):
 			continue  # Sigue usando el mismo rng: el resultado sigue siendo determinista.
-		walls.add_child(_make_block(pos, Vector3(1.2, 1.2, 1.2), Color(0.5, 0.38, 0.25)))
+		var crate := _make_block(pos, Vector3.ONE * CRATE_SIZE, Color(0.5, 0.38, 0.25), false)
+		var m: Node3D = load(BOX_MODEL).instantiate()
+		m.scale = Vector3.ONE * (CRATE_SIZE / BOX_MODEL_SIZE)  # El modelo ya está centrado.
+		crate.add_child(m)
+		walls.add_child(crate)
 		placed += 1
 
 func _build_environment() -> void:
@@ -126,7 +136,8 @@ func _mat(color: Color) -> StandardMaterial3D:
 	return m
 
 ## Bloque con colisión apoyado en el suelo (center.y = 0 es la base).
-func _make_block(center: Vector3, size: Vector3, color: Color) -> StaticBody3D:
+## Si with_mesh es false, solo tiene colisión (el modelo se añade aparte).
+func _make_block(center: Vector3, size: Vector3, color: Color, with_mesh := true) -> StaticBody3D:
 	var sb := StaticBody3D.new()
 	sb.position = center + Vector3(0, size.y / 2, 0)
 	var cs := CollisionShape3D.new()
@@ -134,12 +145,29 @@ func _make_block(center: Vector3, size: Vector3, color: Color) -> StaticBody3D:
 	bs.size = size
 	cs.shape = bs
 	sb.add_child(cs)
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	mi.material_override = _mat(color)
-	sb.add_child(mi)
+	if with_mesh:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = size
+		mi.mesh = bm
+		mi.material_override = _mat(color)
+		sb.add_child(mi)
+	return sb
+
+## Muro de borde: una colisión de caja + modelos Wall_01 (4 m) estirados para
+## cubrir exactamente `length`. along_z = true para los muros laterales.
+func _make_wall(center: Vector3, length: float, along_z: bool) -> StaticBody3D:
+	var sb := _make_block(center, Vector3(length, WALL_HEIGHT, WALL_THICKNESS), Color.GRAY, false)
+	if along_z:
+		sb.rotation.y = PI / 2
+	var n := ceili(length / WALL_MODEL_SIZE.x)
+	var sx := length / (n * WALL_MODEL_SIZE.x)
+	for i in n:
+		var m: Node3D = load(WALL_MODEL).instantiate()
+		# Wall_01 tiene la base en y=0 y está centrado en X/Z.
+		m.scale = Vector3(sx, WALL_HEIGHT / WALL_MODEL_SIZE.y, WALL_THICKNESS / WALL_MODEL_SIZE.z)
+		m.position = Vector3(-length / 2 + (i + 0.5) * WALL_MODEL_SIZE.x * sx, -WALL_HEIGHT / 2, 0)
+		sb.add_child(m)
 	return sb
 
 func next_bullet_id() -> int:
