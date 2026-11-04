@@ -9,7 +9,7 @@ An academic project developed for the Computer Networks course. It consists of a
 - **Transport Protocol:** UDP (optimized for low latency in real-time games).
 
 ## Technologies and Tools
-- **Game Engine:** Godot 4.7 (2D)
+- **Game Engine:** Godot 4.7 (3D)
 - **Language:** GDScript
 
 ## Authors
