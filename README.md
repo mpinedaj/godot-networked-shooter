@@ -9,8 +9,8 @@ An academic project developed for the Computer Networks course. It consists of a
 - **Transport Protocol:** UDP (optimized for low latency in real-time games).
 
 ## Technologies and Tools
-- **Game Engine:** Godot 3D (Version: 4.7.3)
-- **Language:** C#
+- **Game Engine:** Godot 4.7 (2D)
+- **Language:** GDScript
 
 ## Authors
 - Martin Pineda Jaramillo
