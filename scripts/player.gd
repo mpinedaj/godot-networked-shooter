@@ -1,5 +1,5 @@
 extends CharacterBody3D
-## Jugador (3D, vista cenital). La autoridad la tiene el servidor (peer id 1):
+## Jugador (3D, tercera persona). La autoridad la tiene el servidor (peer id 1):
 ##  - Cada peer captura SU input. El host lo aplica directo; un cliente lo envía
 ##    al servidor por RPC (canal no fiable: si se pierde un paquete llega el siguiente).
 ##  - El servidor calcula movimiento, disparos, daño y muerte.
@@ -64,6 +64,7 @@ var _last_pos: Vector3 = Vector3.ZERO
 ## Barra de vida sobre la cabeza (dos quads que siempre miran a la cámara).
 const BAR_SIZE := Vector2(0.9, 0.12)
 const BAR_HEIGHT := 1.95
+var _bar_root: Node3D = null  # Copia la rotación de la cámara cada frame.
 var _bar_fill: MeshInstance3D = null
 
 func _ready() -> void:
@@ -123,12 +124,12 @@ func _build_visual() -> void:
 	add_child(ring)
 
 func _build_health_bar() -> void:
-	var bg := _make_bar_quad(Color(0, 0, 0, 0.75), BAR_SIZE + Vector2(0.04, 0.04), 0)
-	bg.position.y = BAR_HEIGHT
-	add_child(bg)
+	_bar_root = Node3D.new()
+	_bar_root.position.y = BAR_HEIGHT
+	add_child(_bar_root)
+	_bar_root.add_child(_make_bar_quad(Color(0, 0, 0, 0.75), BAR_SIZE + Vector2(0.04, 0.04), 0))
 	_bar_fill = _make_bar_quad(Color(0.3, 0.9, 0.3), BAR_SIZE, 1)
-	_bar_fill.position.y = BAR_HEIGHT
-	add_child(_bar_fill)
+	_bar_root.add_child(_bar_fill)
 
 func _make_bar_quad(color: Color, size: Vector2, priority: int) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
@@ -138,8 +139,6 @@ func _make_bar_quad(color: Color, size: Vector2, priority: int) -> MeshInstance3
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	mat.billboard_keep_scale = true
 	mat.no_depth_test = true
 	mat.render_priority = priority  # El relleno se dibuja encima del fondo.
 	mat.albedo_color = color
@@ -153,9 +152,10 @@ func _update_health_bar() -> void:
 	var ratio := clampf(float(health) / MAX_HEALTH, 0.0, 1.0)
 	_bar_fill.visible = ratio > 0.0
 	_bar_fill.scale.x = maxf(ratio, 0.001)
-	# La cámara no gira en Y, así que X del mundo = horizontal en pantalla:
+	# X local de _bar_root = horizontal en pantalla (copia la rotación de la cámara):
 	# desplazamos el relleno para que la barra se vacíe de derecha a izquierda.
 	_bar_fill.position.x = -(1.0 - ratio) * BAR_SIZE.x / 2
+	_bar_fill.position.z = 0.001  # Un pelo delante del fondo.
 	(_bar_fill.material_override as StandardMaterial3D).albedo_color = Color(0.9, 0.25, 0.2).lerp(Color(0.3, 0.9, 0.3), ratio)
 
 func _play_section(running: bool) -> void:
@@ -184,6 +184,8 @@ func _update_label() -> void:
 	name_label.text = get_display_name() + (" - Tú" if is_local() else "")
 	_update_health_bar()
 	name_label.modulate = Color.WHITE if is_local() else get_color().lightened(0.3)
+	# En tercera persona el nombre propio estorba la vista.
+	name_label.visible = not is_local()
 
 func _apply_dead_state() -> void:
 	visible = not is_dead
@@ -194,19 +196,32 @@ func _apply_dead_state() -> void:
 # ---------------- Captura de input (en el peer dueño de este jugador) ----------------
 func _process(delta: float) -> void:
 	_update_animation(delta)
+	var view_cam := get_viewport().get_camera_3d()
+	if view_cam and _bar_root:
+		_bar_root.global_basis = view_cam.global_basis  # La barra siempre de frente.
 	if not is_local() or is_dead:
 		return
-	var move := Vector2.ZERO
+	# WASD en ejes de la cámara (x = derecha, y = atrás).
+	var local := Vector2.ZERO
 	if Input.is_key_pressed(KEY_D) or Input.is_action_pressed("ui_right"):
-		move.x += 1
+		local.x += 1
 	if Input.is_key_pressed(KEY_A) or Input.is_action_pressed("ui_left"):
-		move.x -= 1
+		local.x -= 1
 	if Input.is_key_pressed(KEY_S) or Input.is_action_pressed("ui_down"):
-		move.y += 1
+		local.y += 1
 	if Input.is_key_pressed(KEY_W) or Input.is_action_pressed("ui_up"):
-		move.y -= 1
-	var aim := _mouse_aim()
-	var shoot := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and get_window().has_focus()
+		local.y -= 1
+	var cam = get_viewport().get_camera_3d()
+	var move := local
+	var aim := visual.rotation.y
+	var shoot := false
+	if cam and cam.has_method("get_yaw_basis"):
+		# Se envía la dirección YA en coordenadas del mundo: el servidor no
+		# necesita saber nada de la cámara del cliente.
+		var world: Vector3 = cam.get_yaw_basis() * Vector3(local.x, 0, local.y)
+		move = Vector2(world.x, world.z)
+		aim = cam.yaw  # El personaje mira hacia donde mira la cámara.
+		shoot = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and cam.is_mouse_captured() and get_window().has_focus()
 
 	if multiplayer.is_server():
 		# El host es servidor y jugador a la vez: aplica su input sin pasar por la red.
@@ -214,23 +229,8 @@ func _process(delta: float) -> void:
 	else:
 		# Cliente -> servidor. Solo se envía la intención, nunca la posición.
 		receive_input.rpc_id(1, move, aim, shoot)
-		# Predicción visual mínima: girar hacia el mouse sin esperar al servidor.
+		# Predicción visual mínima: girar hacia la cámara sin esperar al servidor.
 		visual.rotation.y = aim
-
-## Proyecta el mouse sobre el plano horizontal a la altura del arma.
-func _mouse_aim() -> float:
-	var cam := get_viewport().get_camera_3d()
-	if cam == null:
-		return input_aim
-	var mp := get_viewport().get_mouse_position()
-	var hit = Plane(Vector3.UP, GUN_HEIGHT).intersects_ray(cam.project_ray_origin(mp), cam.project_ray_normal(mp))
-	if hit == null:
-		return visual.rotation.y
-	var d: Vector3 = hit - global_position
-	d.y = 0
-	if d.length() < 0.05:
-		return visual.rotation.y
-	return atan2(-d.x, -d.z)
 
 @rpc("any_peer", "call_remote", "unreliable_ordered", 0)
 func receive_input(move: Vector2, aim: float, shoot: bool) -> void:

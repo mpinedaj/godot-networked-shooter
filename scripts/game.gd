@@ -1,5 +1,5 @@
 extends Node3D
-## Escena de juego (3D, vista cenital). El servidor spawnea jugadores, gestiona
+## Escena de juego (3D, tercera persona). El servidor spawnea jugadores, gestiona
 ## el mapa y el marcador. Los clientes reconstruyen el mismo mapa localmente
 ## (semilla fija) y reciben jugadores/balas por los MultiplayerSpawner.
 
@@ -15,11 +15,10 @@ const WALL_MODEL := "res://Assets/Environment/Wall_01.fbx"
 const WALL_MODEL_SIZE := Vector3(4.0, 2.4, 0.3)
 const BOX_MODEL := "res://Assets/Environment/Box_01.fbx"
 const BOX_MODEL_SIZE := 0.743
-## Cámara: sigue al jugador local desde arriba y un poco atrás.
-const CAM_OFFSET := Vector3(0, 9.5, 6.5)
-const CAM_LOOK_HEIGHT := 0.8
+const ThirdPersonCamera := preload("res://scripts/third_person_camera.gd")
 
-var camera: Camera3D = null
+## Cámara en tercera persona del jugador local (no se replica).
+var camera = null  # third_person_camera.gd
 
 var kills_map: Dictionary = {}  # peer_id -> kills (autoritativo en el servidor)
 var _bullet_counter: int = 0
@@ -49,17 +48,18 @@ func _ready() -> void:
 		# El host también juega: spawnea su propio jugador.
 		_server_spawn_player(1)
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	# Cada peer sigue a SU jugador (la cámara es local, no se replica).
-	var me = players_node.get_node_or_null(str(multiplayer.get_unique_id()))
-	if me == null or camera == null:
-		return
-	var target: Vector3 = me.global_position + CAM_OFFSET
-	camera.global_position = camera.global_position.lerp(target, 1.0 - exp(-8.0 * delta))
+	if not is_instance_valid(camera.target):
+		camera.target = players_node.get_node_or_null(str(multiplayer.get_unique_id()))
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
-		_leave("Saliste de la partida.")
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		# Primer Esc: soltar el mouse. Segundo Esc (mouse libre): salir de la partida.
+		if camera.is_mouse_captured():
+			camera.capture_mouse(false)
+		else:
+			_leave("Saliste de la partida.")
 
 # ---------------- Mapa (determinista: igual en todos los peers) ----------------
 func _build_map() -> void:
@@ -101,12 +101,12 @@ func _build_map() -> void:
 		placed += 1
 
 func _build_environment() -> void:
-	# Cámara: orientación fija; _process la desplaza siguiendo al jugador local.
-	camera = Camera3D.new()
-	camera.fov = 50
+	# Cámara en tercera persona; _process le asigna el jugador local cuando aparece.
+	camera = ThirdPersonCamera.new()
+	camera.fov = 70
 	map_node.add_child(camera)
-	camera.position = CAM_OFFSET
-	camera.look_at(Vector3(0, CAM_LOOK_HEIGHT, 0))
+	camera.position = Vector3(0, 12, 10)
+	camera.look_at(Vector3.ZERO)
 	camera.make_current()
 	# Luz del sol con sombras.
 	var sun := DirectionalLight3D.new()
@@ -235,6 +235,7 @@ func _on_lost_connection(msg: String) -> void:
 	_leave.call_deferred(msg)
 
 func _leave(msg: String) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE  # El menú necesita el cursor.
 	NetworkManager.last_message = msg
 	NetworkManager.close()
 	get_tree().change_scene_to_file(MENU_SCENE)
