@@ -20,6 +20,14 @@ const COLORS := [
 ]
 const COLOR_NAMES := ["Rojo", "Azul", "Verde", "Amarillo", "Morado", "Naranja", "Cian", "Rosa"]
 
+## Modelos FBX (todos comparten el mismo esqueleto y un único clip "Take 001").
+const CHARACTERS := ["Policeman", "Ninja", "Spaceman", "Skeleton", "Alien_Blobby", "Samurai_CapHead_Rigged", "Stag"]
+const GUN_MODEL := "res://Assets/Guns/vectorGun.glb"
+const ANIM := "Take 001"
+## Tramos del clip (segundos), identificados a ojo renderizando el clip.
+const IDLE_SECTION := Vector2(1.0, 4.0)
+const RUN_SECTION := Vector2(6.7, 7.8)
+
 var peer_id: int = 0
 ## Ranura del jugador (0..7): define color y nombre. La asigna el servidor
 ## y viaja en los datos de spawn, así que es igual en todos los peers.
@@ -41,6 +49,12 @@ var input_aim: float = 0.0  # Ángulo (yaw) en radianes alrededor del eje Y.
 var input_shoot: bool = false
 var shoot_cooldown: float = 0.0
 
+# Animación (cada peer la decide localmente según si la posición cambia).
+var anim_player: AnimationPlayer = null
+var _running: bool = false
+var _move_timer: float = 0.0
+var _last_pos: Vector3 = Vector3.ZERO
+
 ## "Visual" gira hacia donde apunta el jugador (su rotación se replica).
 ## El cuerpo físico no gira, así las etiquetas de arriba quedan derechas.
 @onready var visual: Node3D = $Visual
@@ -49,7 +63,8 @@ var shoot_cooldown: float = 0.0
 
 func _ready() -> void:
 	set_multiplayer_authority(1)
-	_build_placeholder_visual()
+	_build_visual()
+	_last_pos = global_position
 	_apply_dead_state()
 	_update_label()
 
@@ -72,28 +87,54 @@ static func aim_direction(yaw: float) -> Vector3:
 	return Vector3.FORWARD.rotated(Vector3.UP, yaw)
 
 # ---------------- Visual ----------------
-func _build_placeholder_visual() -> void:
-	# Cuerpo: cápsula del color del jugador.
-	var body := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.4
-	capsule.height = 1.6
-	body.mesh = capsule
-	body.position.y = 0.8
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = get_color()
-	body.material_override = mat
-	visual.add_child(body)
-	# Arma: caja alargada hacia adelante (-Z).
-	var gun := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(0.14, 0.14, 0.6)
-	gun.mesh = box
-	gun.position = Vector3(0.25, GUN_HEIGHT, -0.45)
-	var gmat := StandardMaterial3D.new()
-	gmat.albedo_color = Color(0.15, 0.15, 0.18)
-	gun.material_override = gmat
+func _build_visual() -> void:
+	# Personaje según la ranura (mismo en todos los peers porque slot viaja en el spawn).
+	var model: Node3D = load("res://Assets/Character/%s.FBX" % CHARACTERS[slot % CHARACTERS.size()]).instantiate()
+	model.rotation.y = PI  # Los FBX miran a +Z; en Godot "adelante" es -Z.
+	visual.add_child(model)
+	var aps := model.find_children("*", "AnimationPlayer", true, false)
+	if not aps.is_empty():
+		anim_player = aps[0]
+		anim_player.get_animation(ANIM).loop_mode = Animation.LOOP_LINEAR
+		_play_section(false)
+	# Arma fija apuntando hacia adelante: así se ve claro hacia dónde dispara.
+	var gun: Node3D = load(GUN_MODEL).instantiate()
+	gun.scale = Vector3.ONE * 1.6
+	gun.position = Vector3(0.28, GUN_HEIGHT, -0.4)
 	visual.add_child(gun)
+	# Anillo de color en el suelo (no gira) para identificar al jugador.
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.48
+	torus.outer_radius = 0.6
+	ring.mesh = torus
+	ring.scale = Vector3(1, 0.2, 1)
+	ring.position.y = 0.03
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color.WHITE if is_local() else get_color()
+	ring.material_override = mat
+	add_child(ring)
+
+func _play_section(running: bool) -> void:
+	if anim_player == null:
+		return
+	var s := RUN_SECTION if running else IDLE_SECTION
+	anim_player.play_section(ANIM, s.x, s.y, 0.15)
+
+## Corre si la posición (calculada en el servidor y replicada) está cambiando.
+## Con un pequeño margen de tiempo para no parpadear entre paquetes de red.
+func _update_animation(delta: float) -> void:
+	var speed := global_position.distance_to(_last_pos) / maxf(delta, 0.0001)
+	_last_pos = global_position
+	if speed > 0.5:
+		_move_timer = 0.15
+	else:
+		_move_timer -= delta
+	var running := _move_timer > 0.0
+	if running != _running:
+		_running = running
+		_play_section(running)
 
 func _update_label() -> void:
 	if name_label == null:
@@ -109,7 +150,8 @@ func _apply_dead_state() -> void:
 		collision.set_deferred("disabled", is_dead)
 
 # ---------------- Captura de input (en el peer dueño de este jugador) ----------------
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_animation(delta)
 	if not is_local() or is_dead:
 		return
 	var move := Vector2.ZERO
