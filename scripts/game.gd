@@ -9,6 +9,11 @@ const MENU_SCENE := "res://scenes/main_menu.tscn"
 const HALF := Vector2(12, 7)
 const WALL_THICKNESS := 0.6
 const WALL_HEIGHT := 1.5
+## Cámara: sigue al jugador local desde arriba y un poco atrás.
+const CAM_OFFSET := Vector3(0, 9.5, 6.5)
+const CAM_LOOK_HEIGHT := 0.8
+
+var camera: Camera3D = null
 
 var kills_map: Dictionary = {}  # peer_id -> kills (autoritativo en el servidor)
 var _bullet_counter: int = 0
@@ -38,6 +43,14 @@ func _ready() -> void:
 		# El host también juega: spawnea su propio jugador.
 		_server_spawn_player(1)
 
+func _process(delta: float) -> void:
+	# Cada peer sigue a SU jugador (la cámara es local, no se replica).
+	var me = players_node.get_node_or_null(str(multiplayer.get_unique_id()))
+	if me == null or camera == null:
+		return
+	var target: Vector3 = me.global_position + CAM_OFFSET
+	camera.global_position = camera.global_position.lerp(target, 1.0 - exp(-8.0 * delta))
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		_leave("Saliste de la partida.")
@@ -51,7 +64,7 @@ func _build_map() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = HALF * 2 + Vector2(WALL_THICKNESS, WALL_THICKNESS) * 2
 	floor_mesh.mesh = plane
-	floor_mesh.material_override = _mat(Color(0.22, 0.25, 0.22))
+	floor_mesh.material_override = _mat(Color(0.55, 0.55, 0.5))
 	map_node.add_child(floor_mesh)
 
 	var walls := Node3D.new()
@@ -78,13 +91,13 @@ func _build_map() -> void:
 		placed += 1
 
 func _build_environment() -> void:
-	# Cámara fija que ve toda la arena (igual para todos los jugadores).
-	var cam := Camera3D.new()
-	cam.fov = 50
-	map_node.add_child(cam)
-	cam.position = Vector3(0, 19, 11)
-	cam.look_at(Vector3(0, 0, 0.6))
-	cam.make_current()
+	# Cámara: orientación fija; _process la desplaza siguiendo al jugador local.
+	camera = Camera3D.new()
+	camera.fov = 50
+	map_node.add_child(camera)
+	camera.position = CAM_OFFSET
+	camera.look_at(Vector3(0, CAM_LOOK_HEIGHT, 0))
+	camera.make_current()
 	# Luz del sol con sombras.
 	var sun := DirectionalLight3D.new()
 	sun.shadow_enabled = true
