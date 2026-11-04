@@ -1,23 +1,18 @@
-extends Area2D
-## Bala. Autoridad del servidor: se crea, se mueve y detecta impactos en el
+extends Area3D
+## Bala (3D). Autoridad del servidor: se crea, se mueve y detecta impactos en el
 ## servidor; los clientes solo ven su posición replicada.
 
-const SPEED := 600.0
+const SPEED := 14.0  # m/s
 const LIFETIME := 1.5
 const DAMAGE := 25
 
 var shooter_peer: int = 0
-var direction: Vector2 = Vector2.RIGHT
+var direction: Vector3 = Vector3.FORWARD
 var life: float = LIFETIME
-
-@onready var visual: Polygon2D = $Visual
 
 func _ready() -> void:
 	set_multiplayer_authority(1)
-	# Dibujo simple (no hay asset de bala).
-	visual.polygon = PackedVector2Array([Vector2(-6, -2), Vector2(6, -2), Vector2(6, 2), Vector2(-6, 2)])
-	visual.color = Color(1, 0.9, 0.2)
-	direction = Vector2.RIGHT.rotated(rotation)
+	direction = Vector3.FORWARD.rotated(Vector3.UP, rotation.y)
 	if multiplayer.is_server():
 		body_entered.connect(_on_body_entered)
 

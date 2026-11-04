@@ -1,25 +1,27 @@
-extends Node2D
-## Escena de juego. El servidor spawnea jugadores, gestiona el mapa y el marcador.
-## Los clientes reconstruyen el mismo mapa localmente (semilla fija) y reciben
-## jugadores/balas por los MultiplayerSpawner.
+extends Node3D
+## Escena de juego (3D, vista cenital). El servidor spawnea jugadores, gestiona
+## el mapa y el marcador. Los clientes reconstruyen el mismo mapa localmente
+## (semilla fija) y reciben jugadores/balas por los MultiplayerSpawner.
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const MENU_SCENE := "res://scenes/main_menu.tscn"
-const MAP_SIZE := Vector2(1280, 720)
-const WALL := 40.0
+## Arena: X en [-HALF.x, HALF.x], Z en [-HALF.y, HALF.y] (metros).
+const HALF := Vector2(12, 7)
+const WALL_THICKNESS := 0.6
+const WALL_HEIGHT := 1.5
 
 var kills_map: Dictionary = {}  # peer_id -> kills (autoritativo en el servidor)
 var _bullet_counter: int = 0
-var spawn_points: Array[Vector2] = [
-	Vector2(200, 200), Vector2(1080, 520), Vector2(1080, 200), Vector2(200, 520),
-	Vector2(640, 360), Vector2(640, 140), Vector2(640, 580), Vector2(400, 360),
+var spawn_points: Array[Vector3] = [
+	Vector3(-8, 0, -3.5), Vector3(8, 0, 3.5), Vector3(8, 0, -3.5), Vector3(-8, 0, 3.5),
+	Vector3(0, 0, 0), Vector3(0, 0, -4.5), Vector3(0, 0, 4.5), Vector3(-4, 0, 0),
 ]
 
-@onready var players_node: Node2D = $Players
-@onready var bullets_node: Node2D = $Bullets
+@onready var players_node: Node3D = $Players
+@onready var bullets_node: Node3D = $Bullets
 @onready var spawner_players: MultiplayerSpawner = $SpawnerPlayers
 @onready var hud: CanvasLayer = $HUD
-@onready var map_node: Node2D = $Map
+@onready var map_node: Node3D = $Map
 
 func _ready() -> void:
 	_build_map()
@@ -42,63 +44,96 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # ---------------- Mapa (determinista: igual en todos los peers) ----------------
 func _build_map() -> void:
-	var floor_rect := ColorRect.new()
-	floor_rect.size = MAP_SIZE
-	floor_rect.color = Color(0.16, 0.18, 0.16)
-	floor_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	floor_rect.z_index = -10
-	map_node.add_child(floor_rect)
+	_build_environment()
 
-	var walls := Node2D.new()
+	# Suelo (solo visual: los jugadores se mueven en el plano y = 0).
+	var floor_mesh := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = HALF * 2 + Vector2(WALL_THICKNESS, WALL_THICKNESS) * 2
+	floor_mesh.mesh = plane
+	floor_mesh.material_override = _mat(Color(0.22, 0.25, 0.22))
+	map_node.add_child(floor_mesh)
+
+	var walls := Node3D.new()
 	walls.name = "Walls"
 	map_node.add_child(walls)
 	# Bordes.
-	for r in [
-		Rect2(0, 0, MAP_SIZE.x, WALL),
-		Rect2(0, MAP_SIZE.y - WALL, MAP_SIZE.x, WALL),
-		Rect2(0, 0, WALL, MAP_SIZE.y),
-		Rect2(MAP_SIZE.x - WALL, 0, WALL, MAP_SIZE.y),
-	]:
-		walls.add_child(_make_block(r.position + r.size / 2, r.size, Color(0.3, 0.3, 0.35)))
+	var t := WALL_THICKNESS
+	var long := HALF.x * 2 + t * 2
+	var short := HALF.y * 2
+	walls.add_child(_make_block(Vector3(0, 0, -HALF.y - t / 2), Vector3(long, WALL_HEIGHT, t), Color(0.35, 0.35, 0.4)))
+	walls.add_child(_make_block(Vector3(0, 0, HALF.y + t / 2), Vector3(long, WALL_HEIGHT, t), Color(0.35, 0.35, 0.4)))
+	walls.add_child(_make_block(Vector3(-HALF.x - t / 2, 0, 0), Vector3(t, WALL_HEIGHT, short), Color(0.35, 0.35, 0.4)))
+	walls.add_child(_make_block(Vector3(HALF.x + t / 2, 0, 0), Vector3(t, WALL_HEIGHT, short), Color(0.35, 0.35, 0.4)))
 
 	# Obstáculos con semilla fija: todos los peers generan exactamente los mismos.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 12345
 	var placed := 0
 	while placed < 12:
-		var pos := Vector2(rng.randf_range(100, 1180), rng.randf_range(100, 620))
+		var pos := Vector3(rng.randf_range(-HALF.x + 1.5, HALF.x - 1.5), 0, rng.randf_range(-HALF.y + 1.5, HALF.y - 1.5))
 		if _near_spawn(pos):
 			continue  # Sigue usando el mismo rng: el resultado sigue siendo determinista.
-		walls.add_child(_make_block(pos, Vector2(48, 48), Color(0.45, 0.35, 0.25)))
+		walls.add_child(_make_block(pos, Vector3(1.2, 1.2, 1.2), Color(0.5, 0.38, 0.25)))
 		placed += 1
 
-func _near_spawn(pos: Vector2) -> bool:
+func _build_environment() -> void:
+	# Cámara fija que ve toda la arena (igual para todos los jugadores).
+	var cam := Camera3D.new()
+	cam.fov = 50
+	map_node.add_child(cam)
+	cam.position = Vector3(0, 19, 11)
+	cam.look_at(Vector3(0, 0, 0.6))
+	cam.make_current()
+	# Luz del sol con sombras.
+	var sun := DirectionalLight3D.new()
+	sun.shadow_enabled = true
+	map_node.add_child(sun)
+	sun.rotation_degrees = Vector3(-55, -30, 0)
+	# Cielo/ambiente.
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.11, 0.12, 0.15)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.6, 0.62, 0.7)
+	env.ambient_light_energy = 0.6
+	var we := WorldEnvironment.new()
+	we.environment = env
+	map_node.add_child(we)
+
+func _near_spawn(pos: Vector3) -> bool:
 	for sp in spawn_points:
-		if pos.distance_to(sp) < 80:
+		if pos.distance_to(sp) < 2.0:
 			return true
 	return false
 
-func _make_block(center: Vector2, size: Vector2, color: Color) -> StaticBody2D:
-	var sb := StaticBody2D.new()
-	sb.position = center
-	var cs := CollisionShape2D.new()
-	var rs := RectangleShape2D.new()
-	rs.size = size
-	cs.shape = rs
+func _mat(color: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	return m
+
+## Bloque con colisión apoyado en el suelo (center.y = 0 es la base).
+func _make_block(center: Vector3, size: Vector3, color: Color) -> StaticBody3D:
+	var sb := StaticBody3D.new()
+	sb.position = center + Vector3(0, size.y / 2, 0)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
 	sb.add_child(cs)
-	var vis := ColorRect.new()
-	vis.size = size
-	vis.position = -size / 2
-	vis.color = color
-	vis.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sb.add_child(vis)
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = _mat(color)
+	sb.add_child(mi)
 	return sb
 
 func next_bullet_id() -> int:
 	_bullet_counter += 1
 	return _bullet_counter
 
-func random_spawn_point() -> Vector2:
+func random_spawn_point() -> Vector3:
 	return spawn_points[randi() % spawn_points.size()]
 
 # ---------------- Jugadores ----------------
@@ -134,7 +169,7 @@ func _on_peer_joined(peer_id: int) -> void:
 func _on_peer_left(peer_id: int) -> void:
 	if not multiplayer.is_server():
 		return
-	var p := players_node.get_node_or_null(str(peer_id))
+	var p = players_node.get_node_or_null(str(peer_id))
 	if p:
 		p.queue_free()  # El spawner replica la eliminación.
 	kills_map.erase(peer_id)

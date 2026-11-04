@@ -1,15 +1,15 @@
-extends CharacterBody2D
-## Jugador. La autoridad la tiene el servidor (peer id 1):
+extends CharacterBody3D
+## Jugador (3D, vista cenital). La autoridad la tiene el servidor (peer id 1):
 ##  - Cada peer captura SU input. El host lo aplica directo; un cliente lo envía
 ##    al servidor por RPC (canal no fiable: si se pierde un paquete llega el siguiente).
 ##  - El servidor calcula movimiento, disparos, daño y muerte.
-##  - El MultiplayerSynchronizer replica posición/vida/estado a todos.
+##  - El MultiplayerSynchronizer replica posición/orientación/vida/estado a todos.
 
-const SPEED := 220.0
+const SPEED := 5.0  # m/s
 const MAX_HEALTH := 100
 const SHOOT_COOLDOWN := 0.25
-const RADIUS := 18.0
-const MUZZLE_DISTANCE := 32.0  # La bala nace fuera del propio cuerpo.
+const MUZZLE_DISTANCE := 0.9  # La bala nace fuera del propio cuerpo.
+const GUN_HEIGHT := 1.0  # Altura del arma y de las balas (m).
 const RESPAWN_TIME := 3.0
 const BULLET_SCENE := preload("res://scenes/bullet.tscn")
 
@@ -28,7 +28,7 @@ var slot: int = 0
 @export var health: int = MAX_HEALTH:
 	set(value):
 		health = value
-		queue_redraw()
+		_update_label()
 
 @export var is_dead: bool = false:
 	set(value):
@@ -37,29 +37,29 @@ var slot: int = 0
 
 # Input recibido (solo el servidor lo usa para simular).
 var input_move: Vector2 = Vector2.ZERO
-var input_aim: float = 0.0
+var input_aim: float = 0.0  # Ángulo (yaw) en radianes alrededor del eje Y.
 var input_shoot: bool = false
 var shoot_cooldown: float = 0.0
 
-@onready var gun: Node2D = $Gun
-@onready var gun_visual: Polygon2D = $Gun/GunVisual
-@onready var collision: CollisionShape2D = $CollisionShape2D
+## "Visual" gira hacia donde apunta el jugador (su rotación se replica).
+## El cuerpo físico no gira, así las etiquetas de arriba quedan derechas.
+@onready var visual: Node3D = $Visual
+@onready var collision: CollisionShape3D = $CollisionShape3D
+@onready var name_label: Label3D = $NameLabel
 
 func _ready() -> void:
-	# La autoridad del jugador es el servidor.
 	set_multiplayer_authority(1)
-	gun_visual.polygon = PackedVector2Array([
-		Vector2(8, -4), Vector2(MUZZLE_DISTANCE - 4, -4),
-		Vector2(MUZZLE_DISTANCE - 4, 4), Vector2(8, 4),
-	])
-	gun_visual.color = Color(0.15, 0.15, 0.18)
+	_build_placeholder_visual()
 	_apply_dead_state()
-	queue_redraw()
+	_update_label()
 
 func setup(p_peer_id: int, p_slot: int) -> void:
 	peer_id = p_peer_id
 	slot = p_slot
 	name = str(peer_id)  # Nombre igual en todos los peers (ruta de los RPC).
+
+func get_color() -> Color:
+	return COLORS[slot % COLORS.size()]
 
 func get_display_name() -> String:
 	return COLOR_NAMES[slot % COLOR_NAMES.size()] + (" (host)" if peer_id == 1 else "")
@@ -67,23 +67,40 @@ func get_display_name() -> String:
 func is_local() -> bool:
 	return peer_id == multiplayer.get_unique_id()
 
-## --- Dibujo simple: cuerpo, barra de vida y nombre ---
-func _draw() -> void:
-	var c: Color = COLORS[slot % COLORS.size()]
-	draw_circle(Vector2.ZERO, RADIUS, c)
-	# El jugador local tiene borde blanco para reconocerse.
-	var outline := Color.WHITE if is_local() else Color(0, 0, 0, 0.6)
-	draw_arc(Vector2.ZERO, RADIUS, 0, TAU, 32, outline, 3.0 if is_local() else 1.5)
-	# Barra de vida.
-	var w := 40.0
-	var y := -RADIUS - 12
-	draw_rect(Rect2(-w / 2, y, w, 5), Color(0, 0, 0, 0.7))
-	draw_rect(Rect2(-w / 2, y, w * float(health) / MAX_HEALTH, 5), Color(0.3, 0.9, 0.3))
-	# Nombre.
-	var font := ThemeDB.fallback_font
-	var label := get_display_name() + (" - Tú" if is_local() else "")
-	var size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
-	draw_string(font, Vector2(-size.x / 2, y - 4), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
+## Dirección horizontal a la que mira un yaw dado (Godot: -Z es "adelante").
+static func aim_direction(yaw: float) -> Vector3:
+	return Vector3.FORWARD.rotated(Vector3.UP, yaw)
+
+# ---------------- Visual ----------------
+func _build_placeholder_visual() -> void:
+	# Cuerpo: cápsula del color del jugador.
+	var body := MeshInstance3D.new()
+	var capsule := CapsuleMesh.new()
+	capsule.radius = 0.4
+	capsule.height = 1.6
+	body.mesh = capsule
+	body.position.y = 0.8
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = get_color()
+	body.material_override = mat
+	visual.add_child(body)
+	# Arma: caja alargada hacia adelante (-Z).
+	var gun := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.14, 0.14, 0.6)
+	gun.mesh = box
+	gun.position = Vector3(0.25, GUN_HEIGHT, -0.45)
+	var gmat := StandardMaterial3D.new()
+	gmat.albedo_color = Color(0.15, 0.15, 0.18)
+	gun.material_override = gmat
+	visual.add_child(gun)
+
+func _update_label() -> void:
+	if name_label == null:
+		return
+	var txt := get_display_name() + (" - Tú" if is_local() else "")
+	name_label.text = "%s\n%d HP" % [txt, health]
+	name_label.modulate = Color.WHITE if is_local() else get_color().lightened(0.3)
 
 func _apply_dead_state() -> void:
 	visible = not is_dead
@@ -91,7 +108,7 @@ func _apply_dead_state() -> void:
 		# Diferido: puede llamarse dentro de un callback de física (impacto de bala).
 		collision.set_deferred("disabled", is_dead)
 
-## --- Captura de input (en el peer dueño de este jugador) ---
+# ---------------- Captura de input (en el peer dueño de este jugador) ----------------
 func _process(_delta: float) -> void:
 	if not is_local() or is_dead:
 		return
@@ -104,8 +121,8 @@ func _process(_delta: float) -> void:
 		move.y += 1
 	if Input.is_key_pressed(KEY_W) or Input.is_action_pressed("ui_up"):
 		move.y -= 1
-	var aim := (get_global_mouse_position() - global_position).angle()
-	var shoot := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and _window_has_focus()
+	var aim := _mouse_aim()
+	var shoot := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and get_window().has_focus()
 
 	if multiplayer.is_server():
 		# El host es servidor y jugador a la vez: aplica su input sin pasar por la red.
@@ -113,12 +130,23 @@ func _process(_delta: float) -> void:
 	else:
 		# Cliente -> servidor. Solo se envía la intención, nunca la posición.
 		receive_input.rpc_id(1, move, aim, shoot)
-		# Predicción visual mínima: el arma apunta al mouse sin esperar al servidor.
-		gun.rotation = aim
+		# Predicción visual mínima: girar hacia el mouse sin esperar al servidor.
+		visual.rotation.y = aim
 
-func _window_has_focus() -> bool:
-	# Con dos instancias en el mismo PC, evita que un clic en una ventana dispare en la otra.
-	return get_window().has_focus()
+## Proyecta el mouse sobre el plano horizontal a la altura del arma.
+func _mouse_aim() -> float:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return input_aim
+	var mp := get_viewport().get_mouse_position()
+	var hit = Plane(Vector3.UP, GUN_HEIGHT).intersects_ray(cam.project_ray_origin(mp), cam.project_ray_normal(mp))
+	if hit == null:
+		return visual.rotation.y
+	var d: Vector3 = hit - global_position
+	d.y = 0
+	if d.length() < 0.05:
+		return visual.rotation.y
+	return atan2(-d.x, -d.z)
 
 @rpc("any_peer", "call_remote", "unreliable_ordered", 0)
 func receive_input(move: Vector2, aim: float, shoot: bool) -> void:
@@ -134,26 +162,27 @@ func _store_input(move: Vector2, aim: float, shoot: bool) -> void:
 	input_aim = aim
 	input_shoot = shoot
 
-## --- Simulación (solo servidor) ---
+# ---------------- Simulación (solo servidor) ----------------
 func _physics_process(delta: float) -> void:
 	if not multiplayer.is_server():
 		return
 	if is_dead:
 		return
-	gun.rotation = input_aim
+	visual.rotation.y = input_aim
 	shoot_cooldown -= delta
 	if input_shoot and shoot_cooldown <= 0.0:
 		shoot_cooldown = SHOOT_COOLDOWN
 		_spawn_bullet(input_aim)
-	velocity = input_move * SPEED
+	velocity = Vector3(input_move.x, 0, input_move.y) * SPEED
 	move_and_slide()
 
 func _spawn_bullet(aim: float) -> void:
 	# En el servidor: se añade bajo Game/Bullets y el MultiplayerSpawner la replica.
 	var game = get_parent().get_parent()
 	var b = BULLET_SCENE.instantiate()
-	b.position = global_position + Vector2.from_angle(aim) * MUZZLE_DISTANCE
-	b.rotation = aim
+	var origin := global_position + Vector3(0, GUN_HEIGHT, 0)
+	b.position = origin + aim_direction(aim) * MUZZLE_DISTANCE
+	b.rotation.y = aim
 	b.shooter_peer = peer_id
 	# Nombre único: si se reutiliza un nombre de una bala ya destruida, los
 	# clientes pueden confundir los paquetes de sincronización de ambas.
