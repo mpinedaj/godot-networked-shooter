@@ -28,6 +28,9 @@ de un PC al otro atravesando los dos routers.
    | PC1 | 192.168.1.10  | 255.255.255.0 | 192.168.1.1      |
    | PC2 | 192.168.2.10  | 255.255.255.0 | 192.168.2.1      |
 
+   Si hay más jugadores, se conectan al Router B con las IP siguientes
+   (`192.168.2.11`, `.12`, …) y la misma puerta de enlace.
+
 ## 2. Configurar los routers
 
 Hay dos casos según el tipo de router disponible.

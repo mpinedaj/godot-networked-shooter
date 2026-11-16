@@ -4,7 +4,7 @@
 An academic project developed for the Computer Networks course. It consists of a multiplayer third-person shooter that demonstrates the practical operation of a **Client-Server** architecture across two Local Area Networks joined by a WAN link between two routers. The project illustrates key networking concepts such as server authority, state synchronization, latency and routing, using the UDP protocol.
 
 ## Network Architecture
-- **Topology:** PC1 (server) – LAN A – Router A – WAN – Router B – LAN B – PC2 (client).
+- **Topology:** PC1 (server) – LAN A – Router A – WAN – Router B – LAN B – PC2…PC5 (clients).
 - **Local Host:** One machine simultaneously acts as the Server (physics and collision authority) and a Client.
 - **Transport Protocol:** UDP port 9999 (ENet), optimized for low latency in real-time games.
 - **Routing:** One static route per router, no NAT.

@@ -14,10 +14,16 @@ Implementa el diseño de [`red.md`](red.md).
 | Router-A     | 2911        | G0/1   | Router-B G0/1 (WAN)  | Cruzado  |
 | Router-B     | 2911        | G0/0   | SW-B G0/1            | Directo  |
 | SW-B         | 2960-24TT   | Fa0/1  | PC2-Cliente Fa0      | Directo  |
+| SW-B         | 2960-24TT   | Fa0/2  | PC3-Cliente Fa0      | Directo  |
+| SW-B         | 2960-24TT   | Fa0/3  | PC4-Cliente Fa0      | Directo  |
+| SW-B         | 2960-24TT   | Fa0/4  | PC5-Cliente Fa0      | Directo  |
+
+PC1-Servidor es el equipo que crea la partida (servidor y jugador). Los cuatro
+PC de la LAN B representan a los jugadores que se conectan como clientes.
 
 Los PC tienen IP estática: PC1 `192.168.1.10/24` con gateway `192.168.1.1`, y
-PC2 `192.168.2.10/24` con gateway `192.168.2.1`. Los switches quedan con su
-configuración por defecto.
+PC2 a PC5 `192.168.2.10` a `192.168.2.13` (/24) con gateway `192.168.2.1`. Los
+switches quedan con su configuración por defecto.
 
 ## Configuración de los routers
 
@@ -111,12 +117,23 @@ Trace complete.
 
 El ping en sentido contrario (PC1 → `192.168.2.10`) también responde con 0 % de pérdida.
 
+Los cuatro clientes alcanzan al servidor:
+
+| Origen      | IP            | Ping a 192.168.1.10        |
+|-------------|---------------|----------------------------|
+| PC2-Cliente | 192.168.2.10  | 4 de 4, 0 % de pérdida     |
+| PC3-Cliente | 192.168.2.11  | 4 de 4, 0 % de pérdida     |
+| PC4-Cliente | 192.168.2.12  | 4 de 4, 0 % de pérdida     |
+| PC5-Cliente | 192.168.2.13  | 4 de 4, 0 % de pérdida     |
+
+El `tracert` desde PC5-Cliente da los mismos tres saltos que desde PC2.
+
 Nota: el primer ping tras encender la red puede perder uno o dos paquetes
 mientras se resuelve ARP en cada salto; el segundo ya sale completo.
 
 ## Relación con el juego
 
 Packet Tracer no ejecuta el juego, pero demuestra que la red lo permite: hay
-conectividad IP de extremo a extremo entre el cliente (`192.168.2.10`) y el
+conectividad IP de extremo a extremo entre cada cliente de la LAN B y el
 servidor (`192.168.1.10`), que es lo único que necesita el tráfico UDP 9999 del
 juego. No hay NAT ni listas de acceso que filtren ese puerto.
