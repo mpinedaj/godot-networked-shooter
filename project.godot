@@ -22,8 +22,11 @@ NetworkManager="*res://scripts/network_manager.gd"
 
 [display]
 
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=960
+window/size/window_height_override=540
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
 
 [editor_plugins]
 
@@ -32,6 +35,7 @@ enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg")
 [physics]
 
 3d/physics_engine="Jolt Physics"
+jolt_physics_3d/simulation/areas_detect_static_bodies=true
 
 [rendering]
 

@@ -1,50 +1,46 @@
 extends Control
 ## Menú principal: crear partida (host), unirse por IP/puerto, salir.
 
+const GAME_SCENE := "res://scenes/game.tscn"
+
 @onready var ip_field: LineEdit = $VBox/IPField
 @onready var port_field: LineEdit = $VBox/PortField
 @onready var status_label: Label = $VBox/StatusLabel
+@onready var local_ip_label: Label = $VBox/LocalIPLabel
 @onready var host_button: Button = $VBox/HostButton
 @onready var join_button: Button = $VBox/JoinButton
 @onready var quit_button: Button = $VBox/QuitButton
 
 func _ready() -> void:
-	port_field.text = "9999"
+	port_field.text = str(NetworkManager.DEFAULT_PORT)
 	ip_field.text = "127.0.0.1"
+	local_ip_label.text = "Tu IP en la red local: %s" % NetworkManager.get_local_ip()
+	# Mensaje pendiente (p. ej. al volver porque el servidor se cerró).
+	status_label.text = NetworkManager.last_message
+	NetworkManager.last_message = ""
 	host_button.pressed.connect(_on_host)
 	join_button.pressed.connect(_on_join)
 	quit_button.pressed.connect(_on_quit)
-	NetworkManager.connected_to_server_ok.connect(_on_connected_ok)
-	NetworkManager.connection_failed_sig.connect(_on_connection_failed)
-	NetworkManager.server_disconnected_sig.connect(_on_server_disconnected)
 
 func _on_host() -> void:
 	var port := int(port_field.text)
 	var err: int = NetworkManager.create_server(port)
 	if err != OK:
-		status_label.text = "Error al crear servidor: %d" % err
+		status_label.text = "Error al crear servidor (¿puerto %d ocupado?): %s" % [port, error_string(err)]
 		return
-	status_label.text = "Servidor creado. Esperando jugadores..."
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
+	get_tree().change_scene_to_file(GAME_SCENE)
 
 func _on_join() -> void:
 	var ip := ip_field.text.strip_edges()
 	var port := int(port_field.text)
-	status_label.text = "Conectando a %s:%d..." % [ip, port]
 	var err: int = NetworkManager.join_server(ip, port)
 	if err != OK:
-		status_label.text = "Error al conectar: %d" % err
+		status_label.text = "Error al conectar: %s" % error_string(err)
 		return
-
-func _on_connected_ok() -> void:
-	status_label.text = "Conectado. Entrando a la partida..."
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
-
-func _on_connection_failed() -> void:
-	status_label.text = "Falló la conexión. Verifica IP/puerto y firewall."
-
-func _on_server_disconnected() -> void:
-	status_label.text = "El servidor se desconectó."
+	# Cargamos la escena de juego YA (mientras ENet hace el handshake), para que
+	# los MultiplayerSpawner existan cuando el servidor empiece a replicar.
+	# Si la conexión falla, game.gd nos devuelve al menú con el mensaje.
+	get_tree().change_scene_to_file(GAME_SCENE)
 
 func _on_quit() -> void:
 	get_tree().quit()
