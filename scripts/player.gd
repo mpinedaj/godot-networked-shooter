@@ -252,6 +252,8 @@ func _update_label() -> void:
 	name_label.modulate = Color.WHITE if is_local() else get_color().lightened(0.3)
 	# En tercera persona el nombre propio estorba la vista.
 	name_label.visible = not is_local()
+	if _bar_root:
+		_bar_root.visible = not is_local()  # La vida propia ya está en el HUD.
 
 func _apply_dead_state() -> void:
 	visible = not is_dead
