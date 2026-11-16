@@ -3,6 +3,7 @@ extends Control
 
 const GAME_SCENE := "res://scenes/game.tscn"
 
+@onready var name_field: LineEdit = $VBox/NameField
 @onready var ip_field: LineEdit = $VBox/IPField
 @onready var port_field: LineEdit = $VBox/PortField
 @onready var status_label: Label = $VBox/StatusLabel
@@ -14,6 +15,7 @@ const GAME_SCENE := "res://scenes/game.tscn"
 func _ready() -> void:
 	port_field.text = str(NetworkManager.DEFAULT_PORT)
 	ip_field.text = "127.0.0.1"
+	name_field.text = NetworkManager.player_name  # Se recuerda al volver al menú.
 	local_ip_label.text = "Tu IP en la red local: %s" % NetworkManager.get_local_ip()
 	# Mensaje pendiente (p. ej. al volver porque el servidor se cerró).
 	status_label.text = NetworkManager.last_message
@@ -23,6 +25,7 @@ func _ready() -> void:
 	quit_button.pressed.connect(_on_quit)
 
 func _on_host() -> void:
+	NetworkManager.player_name = name_field.text.strip_edges()
 	var port := int(port_field.text)
 	var err: int = NetworkManager.create_server(port)
 	if err != OK:
@@ -31,6 +34,7 @@ func _on_host() -> void:
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 func _on_join() -> void:
+	NetworkManager.player_name = name_field.text.strip_edges()
 	var ip := ip_field.text.strip_edges()
 	var port := int(port_field.text)
 	var err: int = NetworkManager.join_server(ip, port)

@@ -66,4 +66,35 @@ Son 2 saltos de capa 3, así que el TTL llega disminuido en 2.
 Los clientes no se comunican entre sí: todo pasa por el servidor, que reenvía
 el estado de la partida a cada uno.
 
+## Mensajes del juego
+
+Todo viaja por la misma conexión ENet (UDP 9999). Lo que se repite muchas veces
+por segundo va **no fiable**: si un paquete se pierde, el siguiente lo reemplaza.
+Lo que ocurre una sola vez va **fiable**: ENet lo reenvía hasta que llega.
+
+| Mensaje                                              | Sentido                  | Entrega                | Frecuencia      |
+|------------------------------------------------------|--------------------------|------------------------|-----------------|
+| Input: dirección, giro, apuntado vertical, botones   | cliente → servidor       | no fiable, ordenado    | 60 por segundo  |
+| Posición y orientación de cada jugador               | servidor → todos         | no fiable              | 30 por segundo  |
+| Vida, muerte, resistencia, munición, recarga         | servidor → todos         | fiable, solo si cambia | al cambiar      |
+| Aparición y desaparición de jugadores y balas        | servidor → todos         | fiable                 | al ocurrir      |
+| Presentación con el nombre del jugador               | cliente → servidor       | fiable                 | una vez         |
+| Estado de la partida (sala, jugando, ganador)        | servidor → todos         | fiable                 | al cambiar      |
+| Marcador, registro de eliminaciones, botiquines      | servidor → todos         | fiable                 | al ocurrir      |
+| Marca de acierto                                     | servidor → solo el tirador | fiable               | al acertar      |
+
+Los botones viajan empaquetados en un entero (un bit por botón: disparar,
+saltar, correr, recargar), así el paquete de input no crece con cada acción
+nueva. Las balas no envían su posición: el servidor solo anuncia dónde nacen y
+hacia dónde van, y cada equipo las mueve por su cuenta. Los efectos visuales
+(destellos, chispas, borde rojo) tampoco generan tráfico: cada equipo los
+dibuja a partir de lo que ya recibe.
+
+**Simulador de mala red.** En un cliente, con el panel F3 abierto, F4 añade
+retraso (0, 50, 100, 200 o 400 ms en cada sentido) y F5 pérdida de paquetes
+(0, 5, 10, 20 o 40 %) a los dos flujos no fiables. Sirve para mostrar en la
+demo qué pasa con un enlace WAN malo: en la prueba local, la respuesta a una
+tecla pasó de 66 ms a 502 ms con 200 ms por sentido y 10 % de pérdida, y los
+demás jugadores se siguen moviendo suave gracias a la interpolación.
+
 En el PC servidor, el Firewall de Windows debe permitir la entrada de UDP 9999.

@@ -31,7 +31,10 @@ privado y rutas estáticas, y se validó en Cisco Packet Tracer, donde cuatro
 clientes alcanzan al servidor a través de los dos routers sin pérdida de
 paquetes. Una prueba funcional con cinco jugadores simultáneos confirmó la
 sincronización del estado, con una latencia de ida y vuelta de 9~ms en un mismo
-equipo.
+equipo. El cliente envía su entrada a una frecuencia fija de 60 veces por
+segundo, recibe el estado 30 veces por segundo y lo interpola, y un simulador
+de mala red integrado en el juego permite observar el efecto del retardo y de
+la pérdida de paquetes.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -130,6 +133,23 @@ disparos en tercera persona para hasta ocho jugadores. Se usó la API de
 multijugador de alto nivel de Godot~\cite{godot}, que trabaja sobre ENet y, por
 lo tanto, sobre UDP. El servidor escucha en el puerto 9999.
 
+\subsection{Descripción del juego}
+Cada jugador escribe su nombre en el menú y entra a una sala de espera; el
+anfitrión ve quién se conectó e inicia la partida. Gana el primero que llega a
+diez eliminaciones; todos ven al ganador y una nueva ronda empieza sola. El
+mapa es una arena simétrica diseñada a mano (Fig.~\ref{fig:mapa}), con
+coberturas altas que tapan la vista y bajas que se pueden saltar, un cuarto de
+color en cada esquina y botiquines en puntos fijos. Los jugadores pueden
+correr, saltar, disparar en cualquier dirección y recargar.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{mapa.png}
+\caption{Vista aérea del mapa. Es simétrico para que ningún punto de
+aparición tenga ventaja.}
+\label{fig:mapa}
+\end{figure}
+
 \subsection{Roles}
 Un jugador crea la partida y su equipo actúa a la vez como servidor y como
 jugador (servidor de escucha). Los demás se unen escribiendo la dirección IP y
@@ -137,18 +157,23 @@ el puerto del servidor. Los clientes no se comunican entre sí: todo pasa por el
 servidor.
 
 \subsection{Autoridad del servidor}
-El cliente no calcula su posición. En cada cuadro envía al servidor su entrada:
-la dirección de movimiento, el ángulo hacia el que apunta y si está disparando.
-El servidor valida que el mensaje provenga del dueño de ese jugador, simula el
-movimiento con colisiones, crea las balas y aplica el daño. Después replica el
-resultado a todos los clientes.
+El cliente no calcula su posición. Sesenta veces por segundo envía al servidor
+su entrada: la dirección de movimiento, los ángulos horizontal y vertical hacia
+los que apunta y un entero con los botones pulsados (disparar, saltar, correr y
+recargar, un bit cada uno). El servidor valida que el mensaje provenga del dueño
+de ese jugador y recorta los valores a rangos válidos; luego simula el
+movimiento con gravedad y colisiones, crea las balas, descuenta la munición y
+aplica el daño. Después replica el resultado a todos los clientes.
 
 \subsection{Tipos de mensaje}
 La Tabla~\ref{tab:mensajes} muestra cómo se reparte el tráfico. La entrada del
 jugador viaja sin garantía de entrega, porque se reemplaza de inmediato por la
 siguiente. Los eventos que no pueden perderse, como el marcador, viajan en modo
-fiable. El mapa no se transmite: cada equipo lo genera con la misma semilla, así
-que todos obtienen los mismos obstáculos sin gastar ancho de banda.
+fiable. El mapa no se transmite: está definido en el código y cada equipo lo
+construye igual. De las balas solo viaja su aparición, con el punto de salida y
+la dirección; como vuelan en línea recta, cada equipo las mueve por su cuenta.
+Los efectos visuales, como destellos y chispas, tampoco generan tráfico: cada
+equipo los dibuja a partir de lo que ya recibe.
 
 \begin{table}[htbp]
 \caption{Mensajes entre cliente y servidor}
@@ -158,26 +183,41 @@ que todos obtienen los mismos obstáculos sin gastar ancho de banda.
 \hline
 \textbf{Dato} & \textbf{Sentido} & \textbf{Entrega} \\
 \hline
-Entrada del jugador & Cliente a servidor & No fiable \\
-Posición y orientación & Servidor a clientes & No fiable \\
-Vida y estado & Servidor a clientes & Al cambiar \\
+Entrada (60 por s) & Cliente a servidor & No fiable \\
+Posición (30 por s) & Servidor a clientes & No fiable \\
+Vida, munición, estado & Servidor a clientes & Fiable, al cambiar \\
 Jugadores y balas nuevos & Servidor a clientes & Fiable \\
-Marcador & Servidor a clientes & Fiable \\
+Nombre del jugador & Cliente a servidor & Fiable \\
+Partida y marcador & Servidor a clientes & Fiable \\
+Marca de acierto & Servidor a un cliente & Fiable \\
 \hline
 \end{tabular}
 \end{table}
 
-\subsection{Panel de red}
+\subsection{Interpolación}
+El cliente recibe 30 estados por segundo, pero dibuja muchos más cuadros. Si
+mostrara cada estado tal como llega, los demás jugadores se moverían a saltos,
+y peor aún con latencia variable. Por eso cada cliente guarda el último estado
+recibido como objetivo y acerca a él la posición dibujada de forma suave en
+cada cuadro. Los saltos grandes, como una reaparición, se aplican de inmediato.
+
+\subsection{Panel de red y simulador de mala red}
 El juego incluye un panel (tecla F3) que muestra el rol del equipo, la dirección
 del servidor, el número de jugadores, la latencia de ida y vuelta medida por
 ENet y la cantidad de paquetes enviados y recibidos. La Fig.~\ref{fig:juego}
 muestra el panel en un cliente conectado.
 
+En un cliente, con el panel abierto, las teclas F4 y F5 activan un simulador de
+mala red: añaden un retardo de 0 a 400~ms en cada sentido y una pérdida de 0 a
+40\,\% a los dos flujos no fiables, la entrada que se envía y las posiciones
+que se reciben. Los mensajes fiables no se alteran, porque ENet los
+retransmitiría de todos modos. Sirve para mostrar cómo responde el juego en un
+enlace WAN de mala calidad sin necesidad de degradar la red real.
+
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\columnwidth]{juego-cliente.png}
-\caption{Vista de un cliente con el panel de red abierto. Al fondo, el jugador
-del servidor.}
+\caption{Vista de un cliente con el panel de red abierto (tecla F3).}
 \label{fig:juego}
 \end{figure}
 
@@ -240,30 +280,40 @@ equipo, conectados por ENet, la misma cantidad de equipos de la simulación. Los
 cinco procesos vieron a los cinco jugadores y el mismo marcador. También se
 comprobó que el servidor calcula el movimiento de los jugadores, que las balas
 creadas en el servidor aparecen en los clientes y que el daño y las
-eliminaciones se registran. La Tabla~\ref{tab:medidas} recoge los valores del
-panel de red de un cliente durante una prueba corta con dos jugadores
-(Fig.~\ref{fig:juego}).
+eliminaciones se registran. La Tabla~\ref{tab:medidas} recoge el tráfico de un
+cliente durante 10~s de partida con dos jugadores, medido con los contadores de
+ENet.
 
 \begin{table}[htbp]
-\caption{Mediciones en un cliente (mismo equipo)}
+\caption{Tráfico de un cliente en 10~s (mismo equipo)}
 \label{tab:medidas}
 \centering
 \begin{tabular}{|l|c|}
 \hline
 \textbf{Medida} & \textbf{Valor} \\
 \hline
-Latencia de ida y vuelta (RTT) & 9 ms \\
-Paquetes enviados & 3996 (151,6 KB) \\
-Paquetes recibidos & 623 (63,9 KB) \\
+Latencia de ida y vuelta (RTT) & 7 ms \\
+Paquetes enviados & 630 (63 por s) \\
+Paquetes recibidos & 619 (62 por s) \\
+Tamaño medio de paquete & 42 B \\
 \hline
 \end{tabular}
 \end{table}
 
-El cliente envía muchos más paquetes de los que recibe porque manda su entrada
-en cada cuadro dibujado, y en la prueba el juego corría a más de 1000 cuadros
-por segundo. Los paquetes son pequeños, de unos 38 bytes en promedio. Una mejora
-directa es enviar la entrada a una frecuencia fija, por ejemplo 60 veces por
-segundo.
+En una primera versión el cliente enviaba su entrada en cada cuadro dibujado;
+como el juego corría a más de 1000 cuadros por segundo, una prueba corta generó
+casi 4000 paquetes de subida. Al enviar la entrada a una frecuencia fija de 60
+veces por segundo, el tráfico de subida quedó en unos 63 paquetes por segundo
+(la entrada más los acuses de recibo de ENet), sin importar la velocidad del
+equipo, y en total cerca de 2,6~KB/s en cada sentido.
+
+\subsection{Prueba con red degradada}
+Con el simulador en 200~ms por sentido y 10\,\% de pérdida, el tiempo entre
+pulsar una tecla y ver moverse al propio jugador pasó de unos 70~ms a cerca de
+500~ms, lo esperado al sumar 400~ms de ida y vuelta. El juego siguió siendo
+jugable: los demás jugadores se movieron de forma suave gracias a la
+interpolación, y los eventos fiables, como el marcador y las eliminaciones,
+llegaron completos.
 
 \subsection{Prueba con equipos físicos}
 \textbf{[PENDIENTE: completar después de la prueba con los dos routers reales.
@@ -287,9 +337,11 @@ pérdidas desde los cuatro clientes y un \texttt{tracert} de tres saltos.
 Usar como servidor el equipo de uno de los jugadores evitó montar un servidor
 dedicado y mantuvo todo el sistema dentro de la red local.
 
-La medición de tráfico mostró que la frecuencia de envío de la entrada depende
-de la velocidad de dibujo del cliente, un aspecto que conviene limitar en una
-versión futura.
+Enviar la entrada a una frecuencia fija, en lugar de en cada cuadro, hizo que el
+tráfico dependa del diseño del protocolo y no de la potencia del equipo. La
+interpolación y el simulador de mala red mostraron que separar los datos
+continuos de los eventos importantes permite que el juego siga funcionando con
+retardo y pérdida de paquetes.
 
 \begin{thebibliography}{00}
 \bibitem{kurose} J. F. Kurose y K. W. Ross, \emph{Computer Networking: A
