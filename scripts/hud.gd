@@ -9,10 +9,13 @@ var debug_visible: bool = false
 @onready var kills_label: Label = $KillsLabel
 @onready var status_label: Label = $StatusLabel
 
-# Aviso de daño (borde rojo) y marca de acierto.
+# Aviso de daño (borde rojo), marca de acierto y registro de eliminaciones.
+const KILL_FEED_TIME := 5.0
+const KILL_FEED_MAX := 4
 var _damage_overlay: TextureRect = null
 var _hit_marker: Control = null
 var _hit_color: Color = Color.WHITE
+var _kill_feed: VBoxContainer = null
 
 # Estado del jugador local (abajo a la derecha): vida, balas y resistencia.
 var _stats_label: Label = null
@@ -53,6 +56,14 @@ func _build_feedback() -> void:
 		for d in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
 			_hit_marker.draw_line(d * 7, d * 16, _hit_color, 3.0, true))
 	add_child(_hit_marker)
+	# Registro de eliminaciones (arriba a la derecha).
+	_kill_feed = VBoxContainer.new()
+	_kill_feed.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_kill_feed.offset_left = -450
+	_kill_feed.offset_top = 46
+	_kill_feed.offset_right = -50
+	_kill_feed.alignment = BoxContainer.ALIGNMENT_BEGIN
+	add_child(_kill_feed)
 
 func show_damage() -> void:
 	_damage_overlay.modulate.a = 1.0
@@ -63,6 +74,20 @@ func show_hit_marker(killed: bool) -> void:
 	_hit_marker.queue_redraw()
 	_hit_marker.modulate.a = 1.0
 	create_tween().tween_property(_hit_marker, "modulate:a", 0.0, 0.35 if killed else 0.2)
+
+func add_kill_feed(killer_name: String, victim_name: String) -> void:
+	var l := Label.new()
+	l.text = "%s eliminó a %s" % [killer_name, victim_name]
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 6)
+	_kill_feed.add_child(l)
+	if _kill_feed.get_child_count() > KILL_FEED_MAX:
+		_kill_feed.get_child(0).queue_free()
+	var tw := l.create_tween()
+	tw.tween_interval(KILL_FEED_TIME)
+	tw.tween_property(l, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(l.queue_free)
 
 func _build_stats() -> void:
 	var box := VBoxContainer.new()

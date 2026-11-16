@@ -223,6 +223,12 @@ func _on_peer_left(peer_id: int) -> void:
 func player_killed(killer_peer: int, victim_peer: int) -> void:
 	kills_map[killer_peer] = kills_map.get(killer_peer, 0) + 1
 	_broadcast_kills()
+	# Se envían los nombres ya resueltos: el cliente no tiene que buscarlos.
+	kill_feed.rpc(get_player_name(killer_peer), get_player_name(victim_peer))
+
+@rpc("authority", "call_local", "reliable")
+func kill_feed(killer_name: String, victim_name: String) -> void:
+	hud.add_kill_feed(killer_name, victim_name)
 
 ## Servidor: avisar SOLO al tirador de que acertó (si el tirador es el host,
 ## call_local hace que se ejecute aquí mismo sin pasar por la red).
