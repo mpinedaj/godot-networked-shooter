@@ -41,9 +41,14 @@ func setup(g: Node) -> void:
 func _build_lobby() -> void:
 	_lobby = PanelContainer.new()
 	_lobby.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_lobby.custom_minimum_size = Vector2(440, 0)
-	_lobby.offset_left = -220
+	_lobby.custom_minimum_size = Vector2(400, 0)
+	_lobby.offset_left = -200
 	_lobby.offset_top = -170
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.08, 0.09, 0.12, 0.88)
+	bg.set_corner_radius_all(8)
+	bg.set_content_margin_all(18)
+	_lobby.add_theme_stylebox_override("panel", bg)
 	add_child(_lobby)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
@@ -61,6 +66,8 @@ func _build_lobby() -> void:
 	box.add_child(goal)
 	_start_button = Button.new()
 	_start_button.text = "Iniciar partida"
+	_start_button.custom_minimum_size = Vector2(0, 46)
+	_start_button.add_theme_font_size_override("font_size", 22)
 	_start_button.pressed.connect(func(): game.start_match())
 	box.add_child(_start_button)
 	_end_label = Label.new()
