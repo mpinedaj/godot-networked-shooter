@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Guía para la sustentación</title>
+<style>
+  @page { size: A4; margin: 16mm 17mm 18mm 17mm; }
+  :root {
+    --ink: #1d2330; --muted: #5b6474; --line: #d9dee6; --soft: #f3f5f8;
+    --accent: #2f6fd6; --accent-soft: #e8f0fd; --warm: #c8562b; --warm-soft: #fcefe9;
+    --green: #2f8f5b; --green-soft: #e7f5ed;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink);
+         font-size: 10.6pt; line-height: 1.5; background: #fff; }
+  h1, h2, h3 { line-height: 1.2; margin: 0; }
+  h2 { font-size: 17pt; margin: 0 0 10px; padding-top: 2px; }
+  h2 .n { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 12pt; margin: 18px 0 6px; }
+  p { margin: 0 0 9px; }
+  ul, ol { margin: 0 0 10px; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+  b, strong { font-weight: 600; }
+  section { break-before: page; }
+  .avoid { break-inside: avoid; }
+
+  /* Portada */
+  .cover { height: 255mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .cover .kicker { font-size: 10pt; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  .cover h1 { font-size: 30pt; margin: 14px 0 12px; letter-spacing: -.01em; }
+  .cover .sub { font-size: 14pt; color: var(--muted); max-width: 150mm; }
+  .cover .who { border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 10pt; }
+  .cover .who b { color: var(--ink); }
+  .cover img { width: 100%; border-radius: 6px; border: 1px solid var(--line); }
+
+  /* Cajas */
+  .say { background: var(--accent-soft); border-left: 4px solid var(--accent); padding: 10px 14px;
+         border-radius: 0 6px 6px 0; margin: 10px 0 14px; break-inside: avoid; }
+  .say .t { font-size: 8.5pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 3px; }
+  .say p:last-child { margin-bottom: 0; }
+  .tip { background: var(--warm-soft); border-left: 4px solid var(--warm); padding: 10px 14px;
+         border-radius: 0 6px 6px 0; margin: 10px 0 14px; break-inside: avoid; }
+  .tip .t { font-size: 8.5pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--warm); display: block; margin-bottom: 3px; }
+  .tip p:last-child, .tip ul:last-child { margin-bottom: 0; }
+
+  figure { margin: 10px 0 14px; break-inside: avoid; }
+  figure img, figure svg { width: 100%; display: block; border-radius: 6px; }
+  figure img { border: 1px solid var(--line); }
+  figcaption { font-size: 9pt; color: var(--muted); margin-top: 5px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 14px; font-size: 10pt; break-inside: avoid; }
+  th { text-align: left; font-weight: 600; background: var(--soft); }
+  th, td { padding: 6px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .pill { display: inline-block; font-size: 8.5pt; font-weight: 600; padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
+  .pill.fast { background: var(--accent-soft); color: var(--accent); }
+  .pill.sure { background: var(--green-soft); color: var(--green); }
+
+  /* Pasos */
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding: 0 0 8px 34px; break-inside: avoid; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 23px; height: 23px; border-radius: 50%;
+                      background: var(--accent); color: #fff; font-weight: 700; font-size: 9.5pt; display: flex; align-items: center; justify-content: center; }
+
+  /* Preguntas */
+  .qa { border: 1px solid var(--line); border-radius: 6px; padding: 9px 13px; margin-bottom: 8px; break-inside: avoid; }
+  .qa .q { font-weight: 600; margin-bottom: 3px; }
+  .qa .q::before { content: "P. "; color: var(--accent); }
+  .qa p { margin: 0; color: #333b4a; }
+
+  .toc { counter-reset: t; list-style: none; padding: 0; margin: 0; }
+  .toc li { counter-increment: t; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .toc li::before { content: counter(t) "."; color: var(--accent); font-weight: 700; display: inline-block; width: 24px; }
+  .muted { color: var(--muted); }
+  svg text { font-family: "Segoe UI", system-ui, sans-serif; }
+</style>
+</head>
+<body>
+
+<!-- ======================= PORTADA ======================= -->
+<div class="cover">
+  <div>
+    <div class="kicker">Redes de Computadores · Guía para la sustentación</div>
+    <h1>Un juego multijugador que cruza dos redes</h1>
+    <p class="sub">Qué hicimos, cómo funciona y cómo contarlo en la sustentación. Es un apoyo para hablar, no un informe: la idea es entenderlo y explicarlo con nuestras palabras.</p>
+  </div>
+  <img src="mapa.png" alt="Vista aérea del mapa del juego">
+  <div>
+    <h3 style="margin-top:0">Contenido</h3>
+    <ol class="toc">
+      <li>La idea en pocas palabras</li>
+      <li>La red: dos LAN unidas por una WAN</li>
+      <li>Cómo habla el juego por la red</li>
+      <li>El juego en sí</li>
+      <li>El panel de red y el simulador de mala red</li>
+      <li>Guion para la demo</li>
+      <li>Preguntas que nos pueden hacer</li>
+      <li>Cómo repartirnos la exposición</li>
+    </ol>
+  </div>
+  <div class="who"><b>Martin Pineda Jaramillo · David Felipe Beltran Tabares · Juan David Navarro Bermudez</b><br>Universidad de los Llanos · Proyecto del curso de Redes de Computadores</div>
+</div>
+
+<!-- ======================= 1 ======================= -->
+<section>
+  <h2><span class="n">1</span>La idea en pocas palabras</h2>
+  <p>Hicimos un juego de disparos en 3D para varios jugadores, y lo usamos para mostrar cómo funciona una red de verdad. Un computador crea la partida y hace de servidor. Los demás jugadores están en <b>otra red local</b> y, para llegar al servidor, sus paquetes tienen que <b>pasar por dos routers</b> unidos por un enlace WAN.</p>
+  <p>El proyecto tiene tres partes que se apoyan entre sí:</p>
+  <ul>
+    <li><b>El diseño de la red</b>: dos LAN, dos routers, direcciones y rutas.</li>
+    <li><b>La simulación en Packet Tracer</b>: armamos esa misma red y comprobamos que los equipos se ven entre sí.</li>
+    <li><b>El juego</b>: hecho en Godot, con arquitectura cliente-servidor sobre UDP.</li>
+  </ul>
+
+  <div class="say"><span class="t">Cómo decirlo</span>
+    <p>“Nuestro proyecto es un juego multijugador, pero lo importante es la red que hay debajo. El servidor está en una red local, los jugadores están en otra, y en el medio hay dos routers conectados por una WAN. Todo lo que pasa en el juego viaja por ese camino.”</p>
+  </div>
+
+  <h3>Lo que queremos que el profesor se lleve</h3>
+  <ul>
+    <li>Sabemos <b>por qué</b> la red está armada así, no solo que funciona.</li>
+    <li>Entendemos la diferencia entre <b>cliente y servidor</b>, y por qué el servidor es el que manda.</li>
+    <li>Sabemos por qué un juego usa <b>UDP</b> y cuándo conviene que un mensaje llegue sí o sí.</li>
+    <li>Podemos mostrarlo funcionando, y hasta <b>empeorar la red a propósito</b> para ver qué pasa.</li>
+  </ul>
+</section>
+
+<!-- ======================= 2 ======================= -->
+<section>
+  <h2><span class="n">2</span>La red: dos LAN unidas por una WAN</h2>
+
+  <figure>
+    <svg viewBox="0 0 720 230" role="img" aria-label="Topología LAN A, Router A, WAN, Router B, LAN B">
+      <rect x="8" y="8" width="230" height="214" rx="10" fill="#e8f0fd"/>
+      <rect x="482" y="8" width="230" height="214" rx="10" fill="#e7f5ed"/>
+      <text x="22" y="30" font-size="13" font-weight="700" fill="#2f6fd6">LAN A · 192.168.1.x</text>
+      <text x="496" y="30" font-size="13" font-weight="700" fill="#2f8f5b">LAN B · 192.168.2.x</text>
+      <text x="360" y="92" font-size="13" font-weight="700" fill="#c8562b" text-anchor="middle">WAN</text>
+      <text x="360" y="108" font-size="11" fill="#5b6474" text-anchor="middle">enlace pequeño entre routers</text>
+      <!-- lines -->
+      <line x1="70" y1="85" x2="70" y2="130" stroke="#1d2330" stroke-width="2"/>
+      <line x1="70" y1="150" x2="175" y2="150" stroke="#1d2330" stroke-width="2"/>
+      <line x1="215" y1="150" x2="505" y2="150" stroke="#c8562b" stroke-width="4"/>
+      <line x1="545" y1="150" x2="640" y2="150" stroke="#1d2330" stroke-width="2"/>
+      <line x1="660" y1="135" x2="660" y2="100" stroke="#1d2330" stroke-width="2"/>
+      <line x1="600" y1="100" x2="700" y2="100" stroke="#1d2330" stroke-width="2"/>
+      <line x1="600" y1="100" x2="600" y2="80" stroke="#1d2330" stroke-width="2"/>
+      <line x1="633" y1="100" x2="633" y2="80" stroke="#1d2330" stroke-width="2"/>
+      <line x1="666" y1="100" x2="666" y2="80" stroke="#1d2330" stroke-width="2"/>
+      <line x1="699" y1="100" x2="699" y2="80" stroke="#1d2330" stroke-width="2"/>
+      <!-- PC1 -->
+      <rect x="40" y="48" width="60" height="38" rx="5" fill="#fff" stroke="#2f6fd6" stroke-width="2"/>
+      <text x="70" y="66" font-size="11" font-weight="700" text-anchor="middle">PC1</text>
+      <text x="70" y="79" font-size="9" fill="#5b6474" text-anchor="middle">servidor</text>
+      <!-- Switch A -->
+      <rect x="40" y="132" width="60" height="36" rx="5" fill="#fff" stroke="#1d2330" stroke-width="1.5"/>
+      <text x="70" y="155" font-size="10" text-anchor="middle">Switch A</text>
+      <!-- Router A -->
+      <circle cx="195" cy="150" r="24" fill="#fff" stroke="#1d2330" stroke-width="2"/>
+      <text x="195" y="154" font-size="10" font-weight="700" text-anchor="middle">Router A</text>
+      <!-- Router B -->
+      <circle cx="525" cy="150" r="24" fill="#fff" stroke="#1d2330" stroke-width="2"/>
+      <text x="525" y="154" font-size="10" font-weight="700" text-anchor="middle">Router B</text>
+      <!-- Switch B -->
+      <rect x="630" y="132" width="60" height="36" rx="5" fill="#fff" stroke="#1d2330" stroke-width="1.5"/>
+      <text x="660" y="155" font-size="10" text-anchor="middle">Switch B</text>
+      <!-- clients -->
+      <g font-size="9" text-anchor="middle">
+        <rect x="586" y="52" width="28" height="28" rx="4" fill="#fff" stroke="#2f8f5b" stroke-width="2"/><text x="600" y="70">PC2</text>
+        <rect x="619" y="52" width="28" height="28" rx="4" fill="#fff" stroke="#2f8f5b" stroke-width="2"/><text x="633" y="70">PC3</text>
+        <rect x="652" y="52" width="28" height="28" rx="4" fill="#fff" stroke="#2f8f5b" stroke-width="2"/><text x="666" y="70">PC4</text>
+        <rect x="685" y="52" width="28" height="28" rx="4" fill="#fff" stroke="#2f8f5b" stroke-width="2"/><text x="699" y="70">PC5</text>
+      </g>
+      <text x="650" y="44" font-size="9" fill="#5b6474" text-anchor="middle">clientes (jugadores)</text>
+      <!-- packet path -->
+      <path d="M 640 196 L 80 196" stroke="#2f6fd6" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#arr)"/>
+      <defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fd6"/></marker></defs>
+      <text x="360" y="214" font-size="10.5" fill="#2f6fd6" text-anchor="middle">camino de un paquete del jugador al servidor: cruza dos routers</text>
+    </svg>
+    <figcaption>La topología que pidieron: un PC en una LAN, el router de esa LAN conectado por WAN a otro router, y al otro lado otra LAN con los demás PC.</figcaption>
+  </figure>
+
+  <h3>Cómo la armamos</h3>
+  <ul>
+    <li><b>Dos redes locales</b>, cada una con su switch y su router. En la LAN A está solo el PC que crea la partida; en la LAN B están los demás jugadores.</li>
+    <li><b>Direcciones privadas</b>: cada LAN tiene su propia red (una empieza por 192.168.1 y la otra por 192.168.2). Así se ve claramente que son redes distintas.</li>
+    <li><b>Un enlace WAN pequeño</b> entre los routers. Como ahí solo hay dos equipos, usamos la red más pequeña que alcanza para dos direcciones (una /30), sin desperdiciar direcciones.</li>
+  </ul>
+
+  <h3>Cómo se encuentran los equipos</h3>
+  <p>Un router conoce solo las redes que tiene conectadas. El Router A sabe llegar a la LAN A y al enlace WAN, pero <b>no sabe dónde está la LAN B</b>. Para eso le pusimos una <b>ruta estática</b>: “para llegar a la LAN B, mándalo al Router B”. El Router B tiene la ruta inversa. Con dos routers no hace falta un protocolo de enrutamiento: dos rutas escritas a mano lo resuelven.</p>
+  <p>No usamos <b>NAT</b>: los jugadores se conectan directo a la dirección real del servidor, y el camino queda más fácil de entender y de verificar.</p>
+
+  <div class="say"><span class="t">Cómo decirlo</span>
+    <p>“Cuando un jugador dispara, su paquete sale de su PC, pasa por el switch de su red, llega a su router, cruza la WAN, entra al otro router, pasa por el otro switch y llega al servidor. La respuesta hace el mismo camino al revés.”</p>
+  </div>
+
+  <h3>Qué mostramos en Packet Tracer</h3>
+  <ul>
+    <li>Armamos exactamente esta red: dos routers, dos switches, el servidor y varios clientes.</li>
+    <li>Hicimos <b>ping</b> desde los clientes al servidor y respondió. El <b>TTL</b> llega un poco más bajo porque cada router le resta uno: es la prueba de que el paquete pasó por los dos.</li>
+    <li>Con <b>tracert</b> se ve el camino salto por salto: el router de la LAN B, el router de la LAN A y el servidor.</li>
+  </ul>
+  <div class="tip"><span class="t">Ojo</span>
+    <p>Packet Tracer no ejecuta el juego. Lo que demuestra es que <b>el camino existe</b>: si hay conectividad IP entre los jugadores y el servidor, el juego funciona sobre esa red.</p>
+  </div>
+</section>
+
+<!-- ======================= 3 ======================= -->
+<section>
+  <h2><span class="n">3</span>Cómo habla el juego por la red</h2>
+
+  <h3>Cliente y servidor</h3>
+  <p>No hay un servidor aparte: el PC que crea la partida <b>es el servidor y además juega</b>. Los demás son clientes. Los clientes <b>nunca hablan entre ellos</b>: todo pasa por el servidor, que le cuenta a cada uno lo que está pasando.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 200" role="img" aria-label="El cliente envía intención, el servidor devuelve el estado">
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fd6"/></marker>
+        <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f8f5b"/></marker>
+        <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c8562b"/></marker>
+      </defs>
+      <rect x="10" y="40" width="160" height="120" rx="10" fill="#e7f5ed" stroke="#2f8f5b" stroke-width="1.5"/>
+      <text x="90" y="70" font-size="14" font-weight="700" text-anchor="middle">Cliente</text>
+      <text x="90" y="94" font-size="11" fill="#333" text-anchor="middle">lee teclado y mouse</text>
+      <text x="90" y="111" font-size="11" fill="#333" text-anchor="middle">dibuja lo que le llega</text>
+      <text x="90" y="128" font-size="11" fill="#333" text-anchor="middle">suaviza el movimiento</text>
+      <rect x="550" y="40" width="160" height="120" rx="10" fill="#e8f0fd" stroke="#2f6fd6" stroke-width="1.5"/>
+      <text x="630" y="70" font-size="14" font-weight="700" text-anchor="middle">Servidor</text>
+      <text x="630" y="94" font-size="11" fill="#333" text-anchor="middle">mueve a los jugadores</text>
+      <text x="630" y="111" font-size="11" fill="#333" text-anchor="middle">decide impactos y daño</text>
+      <text x="630" y="128" font-size="11" fill="#333" text-anchor="middle">lleva el marcador</text>
+      <line x1="175" y1="64" x2="542" y2="64" stroke="#2f6fd6" stroke-width="2.5" marker-end="url(#a1)"/>
+      <text x="360" y="56" font-size="11" text-anchor="middle" fill="#2f6fd6">intención: “me muevo, apunto acá, disparo” (muy seguido)</text>
+      <line x1="542" y1="104" x2="178" y2="104" stroke="#2f8f5b" stroke-width="2.5" marker-end="url(#a2)"/>
+      <text x="360" y="96" font-size="11" text-anchor="middle" fill="#2f8f5b">posiciones de todos (muy seguido)</text>
+      <line x1="542" y1="142" x2="178" y2="142" stroke="#c8562b" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#a3)"/>
+      <text x="360" y="134" font-size="11" text-anchor="middle" fill="#c8562b">eventos: eliminaciones, marcador, ganador</text>
+      <text x="360" y="188" font-size="10.5" text-anchor="middle" fill="#5b6474">El cliente manda su intención; el servidor decide y le cuenta a todos el resultado.</text>
+    </svg>
+  </figure>
+
+  <h3>El servidor es el que manda</h3>
+  <p>El cliente <b>no dice dónde está</b>: dice lo que <b>quiere hacer</b> (moverse hacia allá, apuntar acá, disparar). El servidor hace la cuenta y decide dónde queda cada uno, si una bala pegó y cuánta vida le queda a cada quien. Además revisa que cada mensaje venga del dueño de ese jugador y recorta valores que no tengan sentido.</p>
+  <div class="say"><span class="t">Por qué así</span>
+    <p>Dos razones: <b>todos ven lo mismo</b>, porque hay una sola versión de la partida, y <b>nadie puede hacer trampa</b> mandando “estoy en otro lado” o “tengo toda la vida”.</p>
+  </div>
+
+  <h3>UDP, con ENet encima</h3>
+  <p>El juego usa <b>UDP</b>, no TCP. En un juego, un dato viejo ya no sirve: si se pierde una posición, no vale la pena esperar a que se reenvíe, porque ya viene la siguiente. TCP se quedaría esperando y todo se atrasaría.</p>
+  <p>Pero hay mensajes que <b>sí</b> tienen que llegar, como “fulano eliminó a mengano” o “la partida terminó”. Para eso usamos <b>ENet</b>, que va sobre UDP y nos deja elegir mensaje por mensaje:</p>
+
+  <table>
+    <tr><th style="width:42%">Qué viaja</th><th style="width:22%">Cómo</th><th>Por qué</th></tr>
+    <tr><td>Lo que el jugador quiere hacer (teclas, mira)</td><td><span class="pill fast">rápido, sin garantía</span></td><td>Se repite todo el tiempo; si uno se pierde, llega el siguiente.</td></tr>
+    <tr><td>Posición de cada jugador</td><td><span class="pill fast">rápido, sin garantía</span></td><td>Igual: siempre hay una más nueva en camino.</td></tr>
+    <tr><td>Vida, munición, si murió</td><td><span class="pill sure">seguro</span></td><td>Solo se manda cuando cambia, y tiene que llegar.</td></tr>
+    <tr><td>Aparición de jugadores y balas</td><td><span class="pill sure">seguro</span></td><td>Si se pierde, ese jugador no vería a alguien.</td></tr>
+    <tr><td>Nombre al conectarse, estado de la partida, marcador, eliminaciones, botiquines</td><td><span class="pill sure">seguro</span></td><td>Pasan una vez; perderlos dejaría a alguien desfasado.</td></tr>
+    <tr><td>Aviso de “le pegaste”</td><td><span class="pill sure">seguro</span></td><td>Va <b>solo</b> al que disparó, no a todos.</td></tr>
+  </table>
+
+  <h3>Detalles que cuidan la red</h3>
+  <ul>
+    <li><b>Ritmo fijo.</b> Al principio el cliente mandaba un paquete por cada imagen que dibujaba, y en un PC rápido eso eran muchísimos. Lo cambiamos a un ritmo fijo: ahora el tráfico depende del diseño, no de qué tan potente es el computador.</li>
+    <li><b>Movimiento suave (interpolación).</b> Las posiciones llegan varias veces por segundo, pero la pantalla se dibuja muchas más. En vez de “saltar” a cada posición nueva, el cliente desliza al jugador suavemente hacia ella. Si alguien reaparece lejos, ahí sí salta de una.</li>
+    <li><b>Lo que no hace falta mandar, no se manda.</b> El mapa no viaja: todos lo construyen igual. De una bala solo se avisa dónde nace y hacia dónde va; cada equipo la mueve solo. Los efectos (destellos, chispas, borde rojo) cada equipo los dibuja con lo que ya recibió.</li>
+    <li><b>Botones empacados.</b> Disparar, saltar, correr y recargar viajan juntos en un solo número, un bit por botón. Agregar acciones no agranda el paquete.</li>
+  </ul>
+</section>
+
+<!-- ======================= 4 ======================= -->
+<section>
+  <h2><span class="n">4</span>El juego en sí</h2>
+  <p>Es un juego de disparos en tercera persona, en 3D, hecho en <b>Godot</b> con GDScript, para hasta ocho jugadores. No buscamos un juegazo: queríamos algo divertido y completo para que la parte de red tuviera algo real que mover.</p>
+
+  <h3>Cómo va una partida</h3>
+  <ol class="steps">
+    <li><b>Menú.</b> Cada uno escribe su nombre. Uno pulsa <i>Crear partida</i>; los demás escriben la IP del servidor y pulsan <i>Unirse</i>.</li>
+    <li><b>Sala de espera.</b> Todos aparecen quietos. El host ve la lista de conectados y, cuando están todos, pulsa <i>Iniciar partida</i>.</li>
+    <li><b>Partida.</b> Gana el primero que llegue a diez eliminaciones. Al morir, se reaparece a los pocos segundos.</li>
+    <li><b>Fin.</b> Todos ven quién ganó, y al ratito arranca otra ronda sola, con el marcador en cero.</li>
+  </ol>
+
+  <h3>El mapa</h3>
+  <p>Es el de la portada. Es <b>simétrico</b>, para que nadie aparezca con ventaja: un centro abierto, pasillos a los lados, un cuarto de color en cada esquina (rojo, azul, verde y amarillo) para orientarse, y botiquines en puntos fijos.</p>
+
+  <div class="two">
+    <div>
+      <h3 style="margin-top:4px">Qué puede hacer el jugador</h3>
+      <ul>
+        <li>Moverse, <b>correr</b> (gasta resistencia) y <b>saltar</b>.</li>
+        <li>Apuntar y disparar en cualquier dirección, también hacia arriba y abajo.</li>
+        <li><b>Recargar</b>: las balas son infinitas, pero hay que recargar el cargador.</li>
+        <li>Cubrirse: los muros altos tapan la vista y los bajos se pueden saltar.</li>
+        <li>Recoger <b>botiquines</b>, que vuelven a aparecer al rato.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="margin-top:4px">Lo que se ve en pantalla</h3>
+      <ul>
+        <li>Vida, balas y resistencia abajo a la derecha.</li>
+        <li>Marcador con los nombres de todos.</li>
+        <li>Lista de eliminaciones arriba a la derecha.</li>
+        <li>Borde rojo cuando te pegan y una marca en la mira cuando pegas.</li>
+        <li>Destello al disparar y chispas donde pega la bala.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="say"><span class="t">Cómo conectarlo con la red</span>
+    <p>“Cada cosa que ven en pantalla tiene una decisión de red detrás. La vida viaja segura porque no se puede perder; la posición viaja rápida porque se renueva sola; y los efectos no viajan, cada equipo los dibuja por su cuenta.”</p>
+  </div>
+</section>
+
+<!-- ======================= 5 ======================= -->
+<section>
+  <h2><span class="n">5</span>El panel de red y el simulador de mala red</h2>
+  <figure>
+    <img src="juego-cliente.png" alt="Vista de un cliente con el panel de red abierto">
+    <figcaption>Un cliente con el panel de red abierto (tecla F3).</figcaption>
+  </figure>
+
+  <h3>El panel (F3)</h3>
+  <p>Con <b>F3</b> se abre un panel que muestra el rol del equipo (servidor o cliente), su IP, a qué servidor está conectado, cuántos jugadores hay, la <b>latencia</b> (cuánto tarda un mensaje en ir y volver) y cuántos paquetes se han enviado y recibido. Es la forma de “ver” la red desde adentro del juego.</p>
+
+  <h3>El simulador de mala red (F4 y F5)</h3>
+  <p>En un cliente, con el panel abierto, <b>F4</b> agrega <b>retraso</b> y <b>F5</b> hace que se <b>pierdan paquetes</b> a propósito. Solo afecta a lo que viaja rápido y sin garantía (las teclas y las posiciones). Lo seguro no se toca, porque ENet lo reenviaría igual.</p>
+  <p>Así se puede mostrar en vivo qué pasaría con una WAN mala sin tener que dañar la red real:</p>
+  <ul>
+    <li>Con <b>retraso</b>, el jugador responde tarde a las teclas: se nota que el servidor es el que decide.</li>
+    <li>Con <b>pérdida</b>, el juego sigue andando: llegan menos posiciones, pero la interpolación las suaviza.</li>
+    <li>Los eventos importantes (eliminaciones, marcador) <b>siguen llegando completos</b>.</li>
+  </ul>
+  <div class="say"><span class="t">Cómo decirlo</span>
+    <p>“Si le metemos retraso, el muñeco tarda en moverse, porque mi PC le manda la tecla al servidor, el servidor lo mueve y me devuelve la posición. Si le metemos pérdida, se mueve un poco menos fino, pero no se rompe: por eso elegimos UDP y separamos lo urgente de lo importante.”</p>
+  </div>
+</section>
+
+<!-- ======================= 6 ======================= -->
+<section>
+  <h2><span class="n">6</span>Guion para la demo</h2>
+  <p class="muted">Sirve tanto con los routers reales como con dos instancias en un mismo PC.</p>
+  <ol class="steps">
+    <li><b>Mostrar la red.</b> La topología en Packet Tracer: “aquí está el servidor, aquí los clientes, estos son los dos routers”. Un ping o un tracert desde un cliente para que se vea el camino.</li>
+    <li><b>Crear la partida.</b> En el PC servidor: escribir un nombre y <i>Crear partida</i>. Señalar que el menú muestra la IP local.</li>
+    <li><b>Unirse.</b> En un cliente: nombre, IP del servidor, <i>Unirse</i>. Mostrar que aparece en la sala de espera del host.</li>
+    <li><b>Iniciar y jugar un poco.</b> Moverse, saltar, disparar, recargar. Pegarle al otro para que se vea el borde rojo, la marca en la mira y la lista de eliminaciones.</li>
+    <li><b>Abrir F3.</b> Mostrar el rol, la IP del servidor, la latencia y cómo suben los paquetes.</li>
+    <li><b>Empeorar la red.</b> En el cliente, subir el retraso con F4: el jugador responde tarde. Subir la pérdida con F5: el juego sigue. Volver a dejarlo normal.</li>
+    <li><b>Cerrar.</b> Explicar en una frase por qué funcionó: hay conectividad IP entre las dos LAN gracias a las rutas estáticas, y el juego reparte bien qué va rápido y qué va seguro.</li>
+  </ol>
+  <div class="tip"><span class="t">Antes de la demo</span>
+    <ul>
+      <li>En el PC servidor, permitir en el Firewall de Windows la entrada por <b>UDP en el puerto 9999</b>.</li>
+      <li>Verificar con un ping que los clientes alcanzan al servidor antes de abrir el juego.</li>
+      <li>Si algo falla, el panel F3 dice si el cliente está conectado y a qué IP.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= 7 ======================= -->
+<section>
+  <h2><span class="n">7</span>Preguntas que nos pueden hacer</h2>
+
+  <div class="qa"><div class="q">¿Por qué UDP y no TCP?</div>
+    <p>Porque en un juego importa lo más reciente. TCP reenvía lo que se pierde y no entrega lo nuevo hasta recuperar lo viejo, y eso causa tirones. Con UDP, si se pierde una posición, llega la siguiente. Lo que sí debe llegar lo mandamos en modo seguro con ENet.</p></div>
+
+  <div class="qa"><div class="q">¿Qué pasa si se pierde un paquete?</div>
+    <p>Depende del tipo. Si era una posición o una tecla, no pasa nada: llega la siguiente enseguida. Si era algo importante, como una eliminación, ENet lo vuelve a mandar hasta que llega. Lo podemos mostrar con el simulador.</p></div>
+
+  <div class="qa"><div class="q">¿Por qué el servidor calcula todo y no cada jugador?</div>
+    <p>Para que haya una sola versión de la partida y todos vean lo mismo, y para evitar trampas. El cliente solo dice qué quiere hacer; no puede decir “estoy aquí” ni “no me pegaron”.</p></div>
+
+  <div class="qa"><div class="q">¿Para qué sirven las rutas estáticas? ¿Por qué no un protocolo de enrutamiento?</div>
+    <p>Cada router solo conoce las redes que tiene conectadas; la ruta estática le dice cómo llegar a la LAN del otro lado. Con dos routers y una sola ruta posible, escribirla a mano es lo más simple. Con una red grande o con caminos alternos sí convendría algo como OSPF.</p></div>
+
+  <div class="qa"><div class="q">¿Por qué la WAN usa una /30?</div>
+    <p>Porque en ese enlace solo hay dos equipos, los dos routers. Una /30 da exactamente dos direcciones útiles, así no se desperdician direcciones.</p></div>
+
+  <div class="qa"><div class="q">¿Por qué no usaron NAT?</div>
+    <p>Porque toda la red es nuestra y privada: los clientes pueden llegar directo a la IP del servidor. Sin NAT el camino es más claro y se puede seguir con ping y tracert. Si el juego fuera por internet, sí habría NAT y habría que abrir el puerto en el router del servidor.</p></div>
+
+  <div class="qa"><div class="q">¿Cómo saben que el paquete pasó por los dos routers?</div>
+    <p>Por el TTL: cada router le resta uno, y llega con dos menos. Y con tracert se ven los saltos uno por uno.</p></div>
+
+  <div class="qa"><div class="q">¿Por qué los clientes no se hablan entre ellos?</div>
+    <p>Porque es cliente-servidor: el servidor tiene la verdad y le cuenta a cada uno. Así cada cliente solo necesita saber la IP del servidor y no las de todos los demás.</p></div>
+
+  <div class="qa"><div class="q">¿Qué pasa si el servidor se cae?</div>
+    <p>Se acaba la partida: los clientes vuelven al menú con un aviso. Es la desventaja de que el servidor sea uno de los jugadores; un servidor dedicado lo evitaría, pero para el proyecto preferimos mantenerlo simple.</p></div>
+
+  <div class="qa"><div class="q">¿Cómo se ve tan fluido si las posiciones llegan pocas veces por segundo?</div>
+    <p>Por la interpolación: el cliente no salta a cada posición nueva, sino que lleva al jugador suavemente hacia ella.</p></div>
+
+  <div class="qa"><div class="q">¿El mapa se manda por la red?</div>
+    <p>No. Está en el código y cada equipo lo construye igual. Lo mismo con los efectos visuales: no gastan red.</p></div>
+</section>
+
+<!-- ======================= 8 ======================= -->
+<section>
+  <h2><span class="n">8</span>Cómo repartirnos la exposición</h2>
+  <p>Una sugerencia para que cada uno tenga su parte clara. Conviene que todos sepamos contestar las preguntas de la sección anterior.</p>
+  <table>
+    <tr><th style="width:22%">Parte</th><th style="width:38%">Qué cuenta</th><th>Apoyo</th></tr>
+    <tr><td><b>1 · La red</b></td><td>La topología, las direcciones, la /30, las rutas estáticas, por qué no NAT.</td><td>Diagrama de la sección 2 y Packet Tracer con ping y tracert.</td></tr>
+    <tr><td><b>2 · La comunicación</b></td><td>Cliente-servidor, el servidor manda, UDP y ENet, rápido contra seguro, ritmo fijo, interpolación.</td><td>Diagrama y tabla de la sección 3.</td></tr>
+    <tr><td><b>3 · La demo</b></td><td>El juego funcionando, el panel F3 y el simulador de mala red.</td><td>Guion de la sección 6.</td></tr>
+  </table>
+
+  <h3>Para cerrar</h3>
+  <div class="say"><span class="t">Cómo decirlo</span>
+    <p>“Logramos que un juego en tiempo real funcione entre dos redes distintas unidas por una WAN. La red lo hace posible con dos rutas estáticas, y el juego lo aprovecha bien: el servidor decide, lo urgente viaja rápido y lo importante viaja seguro. Y con el simulador mostramos que aguanta aunque la red no sea buena.”</p>
+  </div>
+</section>
+
+</body>
+</html>

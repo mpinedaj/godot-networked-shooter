@@ -36,6 +36,7 @@ Controls: WASD to move, Shift to sprint, Space to jump, mouse to aim, left click
 | [docs/red-lan-wan-lan.pkt](docs/red-lan-wan-lan.pkt) | Packet Tracer file (9.0.1) |
 | [docs/prueba-real.md](docs/prueba-real.md) | Guide for the test with two physical PCs and routers |
 | [docs/informe/main.tex](docs/informe/main.tex) | Project report in IEEE format (LaTeX, IEEEtran) |
+| [docs/sustentacion.pdf](docs/sustentacion.pdf) | Guide for the oral presentation, in Spanish (source: [docs/sustentacion.html](docs/sustentacion.html)) |
 
 ## Technologies and Tools
 - **Game Engine:** Godot 4.7 (3D)
