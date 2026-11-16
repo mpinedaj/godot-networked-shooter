@@ -6,10 +6,28 @@ extends Node3D
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 ## Arena: X en [-HALF.x, HALF.x], Z en [-HALF.y, HALF.y] (metros).
-const HALF := Vector2(12, 7)
-const WALL_THICKNESS := 0.6
-const WALL_HEIGHT := 1.5
+const HALF := Vector2(18, 12)
+const WALL_THICKNESS := 0.6   # Muros del borde.
+const BORDER_HEIGHT := 3.0
 const CRATE_SIZE := 1.2
+## Coberturas: los muros altos tapan la vista; los bajos cubren medio cuerpo
+## y se pueden saltar (el salto llega a ~1,2 m).
+const HIGH := 2.4
+const LOW := 1.0
+const COVER_THICKNESS := 0.4
+## Mapa diseñado a mano. Se describe UN cuadrante (x >= 0, z >= 0) y se refleja
+## en los otros tres: así es simétrico y nadie aparece con ventaja.
+## Cada muro: [centro x, centro z, largo en x, largo en z, alto].
+const QUADRANT_WALLS := [
+	[13.75, 6.0, 3.5, COVER_THICKNESS, HIGH],  # Cuarto de la esquina: muro hacia el centro.
+	[12.0, 7.75, COVER_THICKNESS, 3.5, HIGH],  # Cuarto de la esquina: muro hacia el pasillo.
+	[5.5, 6.0, 5.0, COVER_THICKNESS, HIGH],    # Separa el pasillo lateral del centro.
+	[3.0, 0.0, COVER_THICKNESS, 3.0, LOW],     # Anillo de coberturas del centro.
+	[0.0, 3.0, 3.0, COVER_THICKNESS, LOW],
+	[13.5, 0.0, COVER_THICKNESS, 3.0, LOW],    # Cobertura de la zona de aparición.
+	[7.0, 9.5, COVER_THICKNESS, 2.0, LOW],     # Cobertura en el pasillo.
+]
+const QUADRANT_CRATES := [Vector2(8.5, 2.5), Vector2(9.5, 10.5)]
 ## Modelos del escenario y su tamaño original (medido del FBX importado).
 const WALL_MODEL := "res://Assets/Environment/Wall_01.fbx"
 const WALL_MODEL_SIZE := Vector3(4.0, 2.4, 0.3)
@@ -29,9 +47,10 @@ var winner_name: String = ""
 
 var kills_map: Dictionary = {}  # peer_id -> kills (autoritativo en el servidor)
 var _bullet_counter: int = 0
+## Los dos primeros (los primeros jugadores) quedan en lados opuestos.
 var spawn_points: Array[Vector3] = [
-	Vector3(-8, 0, -3.5), Vector3(8, 0, 3.5), Vector3(8, 0, -3.5), Vector3(-8, 0, 3.5),
-	Vector3(0, 0, 0), Vector3(0, 0, -4.5), Vector3(0, 0, 4.5), Vector3(-4, 0, 0),
+	Vector3(-16, 0, 0), Vector3(16, 0, 0), Vector3(0, 0, -9), Vector3(0, 0, 9),
+	Vector3(-15.5, 0, 9.5), Vector3(15.5, 0, -9.5), Vector3(15.5, 0, 9.5), Vector3(-15.5, 0, -9.5),
 ]
 
 @onready var players_node: Node3D = $Players
@@ -88,32 +107,51 @@ func _build_map() -> void:
 	var t := WALL_THICKNESS
 	var long := HALF.x * 2 + t * 2
 	var short := HALF.y * 2
-	walls.add_child(_make_wall(Vector3(0, 0, -HALF.y - t / 2), long, false))
-	walls.add_child(_make_wall(Vector3(0, 0, HALF.y + t / 2), long, false))
-	walls.add_child(_make_wall(Vector3(-HALF.x - t / 2, 0, 0), short, true))
-	walls.add_child(_make_wall(Vector3(HALF.x + t / 2, 0, 0), short, true))
+	walls.add_child(_make_wall(Vector3(0, 0, -HALF.y - t / 2), long, false, BORDER_HEIGHT, t))
+	walls.add_child(_make_wall(Vector3(0, 0, HALF.y + t / 2), long, false, BORDER_HEIGHT, t))
+	walls.add_child(_make_wall(Vector3(-HALF.x - t / 2, 0, 0), short, true, BORDER_HEIGHT, t))
+	walls.add_child(_make_wall(Vector3(HALF.x + t / 2, 0, 0), short, true, BORDER_HEIGHT, t))
 
-	# Obstáculos (cajas Box_01) con semilla fija: todos los peers generan los mismos.
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 12345
-	var placed := 0
-	while placed < 12:
-		var pos := Vector3(rng.randf_range(-HALF.x + 1.5, HALF.x - 1.5), 0, rng.randf_range(-HALF.y + 1.5, HALF.y - 1.5))
-		if _near_spawn(pos):
-			continue  # Sigue usando el mismo rng: el resultado sigue siendo determinista.
-		var crate := _make_block(pos, Vector3.ONE * CRATE_SIZE, Color(0.5, 0.38, 0.25), false)
-		var m: Node3D = load(BOX_MODEL).instantiate()
-		m.scale = Vector3.ONE * (CRATE_SIZE / BOX_MODEL_SIZE)  # El modelo ya está centrado.
-		crate.add_child(m)
-		walls.add_child(crate)
-		placed += 1
+	# Muros interiores y cajas: el cuadrante descrito arriba, reflejado en los cuatro.
+	for w in _mirror(QUADRANT_WALLS):
+		var along_z: bool = w[3] > w[2]
+		walls.add_child(_make_wall(Vector3(w[0], 0, w[1]), maxf(w[2], w[3]), along_z, w[4], minf(w[2], w[3])))
+	for c in _mirror(QUADRANT_CRATES.map(func(v): return [v.x, v.y])):
+		walls.add_child(_make_crate(Vector3(c[0], 0, c[1])))
+	# Columna de dos cajas en el centro: tapa la vista de lado a lado.
+	walls.add_child(_make_crate(Vector3.ZERO))
+	walls.add_child(_make_crate(Vector3(0, CRATE_SIZE, 0)))
+
+## Refleja piezas [x, z, ...] del cuadrante x>=0, z>=0 en los cuatro cuadrantes.
+## Las que están sobre un eje (x = 0 o z = 0) no se duplican.
+func _mirror(pieces: Array) -> Array:
+	var out: Array = []
+	var seen := {}
+	for p in pieces:
+		for sx in [1, -1]:
+			for sz in [1, -1]:
+				var q: Array = p.duplicate()
+				q[0] = p[0] * sx
+				q[1] = p[1] * sz
+				var key := "%.2f,%.2f" % [q[0], q[1]]
+				if not seen.has(key):
+					seen[key] = true
+					out.append(q)
+	return out
+
+func _make_crate(pos: Vector3) -> StaticBody3D:
+	var crate := _make_block(pos, Vector3.ONE * CRATE_SIZE, Color(0.5, 0.38, 0.25), false)
+	var m: Node3D = load(BOX_MODEL).instantiate()
+	m.scale = Vector3.ONE * (CRATE_SIZE / BOX_MODEL_SIZE)  # El modelo ya está centrado.
+	crate.add_child(m)
+	return crate
 
 func _build_environment() -> void:
 	# Cámara en tercera persona; _process le asigna el jugador local cuando aparece.
 	camera = ThirdPersonCamera.new()
 	camera.fov = 70
 	map_node.add_child(camera)
-	camera.position = Vector3(0, 12, 10)
+	camera.position = Vector3(0, 20, 16)
 	camera.look_at(Vector3.ZERO)
 	camera.make_current()
 	# Luz del sol con sombras.
@@ -131,12 +169,6 @@ func _build_environment() -> void:
 	var we := WorldEnvironment.new()
 	we.environment = env
 	map_node.add_child(we)
-
-func _near_spawn(pos: Vector3) -> bool:
-	for sp in spawn_points:
-		if pos.distance_to(sp) < 2.0:
-			return true
-	return false
 
 func _mat(color: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -162,10 +194,11 @@ func _make_block(center: Vector3, size: Vector3, color: Color, with_mesh := true
 		sb.add_child(mi)
 	return sb
 
-## Muro de borde: una colisión de caja + modelos Wall_01 (4 m) estirados para
-## cubrir exactamente `length`. along_z = true para los muros laterales.
-func _make_wall(center: Vector3, length: float, along_z: bool) -> StaticBody3D:
-	var sb := _make_block(center, Vector3(length, WALL_HEIGHT, WALL_THICKNESS), Color.GRAY, false)
+## Muro: una colisión de caja + modelos Wall_01 (4 m) estirados para cubrir
+## exactamente `length` con la altura y el grosor pedidos. along_z = true si
+## el muro va a lo largo del eje Z.
+func _make_wall(center: Vector3, length: float, along_z: bool, height: float, thickness: float) -> StaticBody3D:
+	var sb := _make_block(center, Vector3(length, height, thickness), Color.GRAY, false)
 	if along_z:
 		sb.rotation.y = PI / 2
 	var n := ceili(length / WALL_MODEL_SIZE.x)
@@ -173,8 +206,8 @@ func _make_wall(center: Vector3, length: float, along_z: bool) -> StaticBody3D:
 	for i in n:
 		var m: Node3D = load(WALL_MODEL).instantiate()
 		# Wall_01 tiene la base en y=0 y está centrado en X/Z.
-		m.scale = Vector3(sx, WALL_HEIGHT / WALL_MODEL_SIZE.y, WALL_THICKNESS / WALL_MODEL_SIZE.z)
-		m.position = Vector3(-length / 2 + (i + 0.5) * WALL_MODEL_SIZE.x * sx, -WALL_HEIGHT / 2, 0)
+		m.scale = Vector3(sx, height / WALL_MODEL_SIZE.y, thickness / WALL_MODEL_SIZE.z)
+		m.position = Vector3(-length / 2 + (i + 0.5) * WALL_MODEL_SIZE.x * sx, -height / 2, 0)
 		sb.add_child(m)
 	return sb
 
