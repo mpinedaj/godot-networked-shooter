@@ -16,12 +16,15 @@ const STAMINA_REGEN := 20.0   # por segundo sin correr
 const STAMINA_RECOVER := 25.0 # tras agotarse, mínimo para volver a correr
 const MAX_HEALTH := 100
 const SHOOT_COOLDOWN := 0.25
+const MAG_SIZE := 12       # Balas por cargador (la reserva es infinita).
+const RELOAD_TIME := 1.5   # s
 const GUN_HEIGHT := 1.25  # Altura del arma y de las balas (m).
 const MAX_PITCH := 1.2    # Límite de apuntado vertical que acepta el servidor (rad).
 ## Botones del input, empaquetados en un entero (1 bit cada uno).
 const BTN_SHOOT := 1
 const BTN_JUMP := 2
 const BTN_SPRINT := 4
+const BTN_RELOAD := 8
 const RESPAWN_TIME := 3.0
 const BULLET_SCENE := preload("res://scenes/bullet.tscn")
 
@@ -82,6 +85,11 @@ var _has_target: bool = false
 ## Resistencia para correr. La calcula el servidor y se replica (HUD del dueño).
 @export var stamina: float = MAX_STAMINA
 var _exhausted: bool = false
+
+## Munición: el servidor la descuenta y se replica (HUD del dueño).
+@export var ammo: int = MAG_SIZE
+@export var reloading: bool = false
+var _reload_left: float = 0.0
 
 # Input recibido (solo el servidor lo usa para simular).
 var input_move: Vector2 = Vector2.ZERO
@@ -282,6 +290,8 @@ func _capture_input() -> void:
 				buttons |= BTN_JUMP
 			if Input.is_key_pressed(KEY_SHIFT):
 				buttons |= BTN_SPRINT
+			if Input.is_key_pressed(KEY_R):
+				buttons |= BTN_RELOAD
 
 	if multiplayer.is_server():
 		# El host es servidor y jugador a la vez: aplica su input sin pasar por la red.
@@ -333,10 +343,22 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 	visual.rotation.y = input_aim
+	# Recarga: con R, o sola al intentar disparar con el cargador vacío.
+	if reloading:
+		_reload_left -= delta
+		if _reload_left <= 0.0:
+			ammo = MAG_SIZE
+			reloading = false
+	elif input_buttons & BTN_RELOAD and ammo < MAG_SIZE:
+		_start_reload()
 	shoot_cooldown -= delta
-	if input_buttons & BTN_SHOOT and shoot_cooldown <= 0.0:
-		shoot_cooldown = SHOOT_COOLDOWN
-		_spawn_bullet()
+	if input_buttons & BTN_SHOOT and shoot_cooldown <= 0.0 and not reloading:
+		if ammo > 0:
+			ammo -= 1
+			shoot_cooldown = SHOOT_COOLDOWN
+			_spawn_bullet()
+		else:
+			_start_reload()
 
 	# Correr: gasta resistencia; si se agota hay que recuperar un mínimo.
 	var moving := input_move.length() > 0.1
@@ -359,6 +381,10 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y -= GRAVITY * delta
 	move_and_slide()
+
+func _start_reload() -> void:
+	reloading = true
+	_reload_left = RELOAD_TIME
 
 func _spawn_bullet() -> void:
 	# En el servidor: se añade bajo Game/Bullets y el MultiplayerSpawner la replica.
@@ -400,4 +426,6 @@ func _respawn() -> void:
 	health = MAX_HEALTH
 	stamina = MAX_STAMINA
 	_exhausted = false
+	ammo = MAG_SIZE
+	reloading = false
 	is_dead = false

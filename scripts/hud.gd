@@ -1,5 +1,5 @@
 extends CanvasLayer
-## HUD: marcador de kills, ayuda de controles y panel de red (F3).
+## HUD: marcador de kills, ayuda de controles, estado del jugador y panel de red (F3).
 
 var game: Node = null
 var debug_visible: bool = false
@@ -9,12 +9,50 @@ var debug_visible: bool = false
 @onready var kills_label: Label = $KillsLabel
 @onready var status_label: Label = $StatusLabel
 
+# Estado del jugador local (abajo a la derecha): vida, balas y resistencia.
+var _stats_label: Label = null
+var _stamina_bar: ProgressBar = null
+
 func setup(g: Node) -> void:
 	game = g
 	debug_panel.visible = false
 	update_kills({})
+	_build_stats()
+
+func _build_stats() -> void:
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	box.offset_left = -330
+	box.offset_top = -110
+	box.offset_right = -50
+	box.offset_bottom = -40
+	add_child(box)
+	_stats_label = Label.new()
+	_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_stats_label.add_theme_font_size_override("font_size", 26)
+	_stats_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_stats_label.add_theme_constant_override("outline_size", 6)
+	box.add_child(_stats_label)
+	_stamina_bar = ProgressBar.new()
+	_stamina_bar.custom_minimum_size = Vector2(0, 10)
+	_stamina_bar.show_percentage = false
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.95, 0.8, 0.25)
+	_stamina_bar.add_theme_stylebox_override("fill", fill)
+	box.add_child(_stamina_bar)
+
+func _update_stats() -> void:
+	var me = game.get_local_player() if game else null
+	_stats_label.get_parent().visible = me != null
+	if me == null:
+		return
+	var ammo_txt: String = "Recargando..." if me.reloading else "Balas %d / ∞" % me.ammo
+	_stats_label.text = "Vida %d    %s" % [me.health, ammo_txt]
+	_stamina_bar.max_value = me.MAX_STAMINA
+	_stamina_bar.value = me.stamina
 
 func _process(_delta: float) -> void:
+	_update_stats()
 	# Aviso mientras el cliente aún no recibe su jugador del servidor.
 	var waiting: bool = game != null and not NetworkManager.is_host and not game.has_local_player()
 	status_label.visible = waiting

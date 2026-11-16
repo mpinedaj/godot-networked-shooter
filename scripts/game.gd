@@ -197,6 +197,9 @@ func _spawn_player_custom(data: Variant) -> Node:
 func has_local_player() -> bool:
 	return players_node.has_node(str(multiplayer.get_unique_id()))
 
+func get_local_player() -> Node:
+	return players_node.get_node_or_null(str(multiplayer.get_unique_id()))
+
 func get_player_name(peer_id: int) -> String:
 	var p = players_node.get_node_or_null(str(peer_id))
 	return p.get_display_name() if p else "Peer %d" % peer_id
