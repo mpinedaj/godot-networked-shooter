@@ -25,6 +25,15 @@ var player_name: String = ""
 var last_message: String = ""
 ## IP del servidor al que se conectó este cliente (vacío si somos el host).
 var server_ip: String = ""
+## Simulador de mala red (solo en clientes, se cambia con F4/F5 en el panel F3).
+## Retrasa y descarta a propósito los dos flujos NO fiables: el input que se
+## envía al servidor y las posiciones que llegan de él. Los mensajes fiables
+## no se tocan: ENet los reenviaría igual si se perdieran.
+const SIM_DELAYS := [0, 50, 100, 200, 400]        # ms añadidos en CADA sentido.
+const SIM_LOSSES := [0.0, 0.05, 0.10, 0.20, 0.40]  # Probabilidad de descartar un paquete.
+var sim_delay_idx: int = 0
+var sim_loss_idx: int = 0
+var sim_dropped: int = 0  # Paquetes descartados por el simulador.
 ## Tráfico acumulado de esta sesión (ENet entrega contadores que se reinician al leerlos).
 var sent_packets: int = 0
 var sent_bytes: int = 0
@@ -69,6 +78,25 @@ func join_server(ip: String, p_port: int) -> int:
 	is_host = false
 	return OK
 
+func sim_delay_ms() -> int:
+	return SIM_DELAYS[sim_delay_idx]
+
+func sim_active() -> bool:
+	return not is_host and peer != null and (sim_delay_idx > 0 or sim_loss_idx > 0)
+
+## true = este paquete se "pierde" (según el porcentaje elegido).
+func sim_drop() -> bool:
+	if randf() < SIM_LOSSES[sim_loss_idx]:
+		sim_dropped += 1
+		return true
+	return false
+
+func sim_text() -> String:
+	if is_host:
+		return "Simulador de mala red: solo en clientes"
+	return "Mala red (F4/F5): +%d ms por sentido, pérdida %d%%\nDescartados por el simulador: %d" % [
+		sim_delay_ms(), roundi(SIM_LOSSES[sim_loss_idx] * 100), sim_dropped]
+
 ## Cierra la conexión actual y vuelve al modo sin red.
 func close() -> void:
 	if peer != null:
@@ -76,6 +104,7 @@ func close() -> void:
 	peer = null
 	is_host = false
 	server_ip = ""
+	sim_dropped = 0
 	sent_packets = 0
 	sent_bytes = 0
 	recv_packets = 0
@@ -138,7 +167,10 @@ func get_ping_text() -> String:
 	var sp := peer.get_peer(1)
 	if sp == null:
 		return "conectando..."
-	return "%d ms" % int(sp.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
+	var rtt := int(sp.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
+	if sim_delay_ms() > 0:
+		return "%d ms (+%d simulados = %d ms)" % [rtt, 2 * sim_delay_ms(), rtt + 2 * sim_delay_ms()]
+	return "%d ms" % rtt
 
 func _process(_delta: float) -> void:
 	# Acumular estadísticas de tráfico de ENet (para el panel F3).

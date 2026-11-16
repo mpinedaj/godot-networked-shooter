@@ -81,16 +81,46 @@ var _round_token: int = 0
 	get:
 		return position
 	set(value):
-		_target_pos = value
-		if not _has_target or position.distance_to(value) > SNAP_DISTANCE:
-			position = value
-		_has_target = true
+		if not _sim_queue_state(0, value):
+			_apply_pos(value)
 
 @export var sync_yaw: float:
 	get:
 		return visual.rotation.y if visual else 0.0
 	set(value):
-		_target_yaw = value
+		if not _sim_queue_state(1, value):
+			_target_yaw = value
+
+## Simulador de mala red (cliente): estados e inputs retenidos [hora_ms, ...].
+var _sim_states: Array = []
+var _sim_inputs: Array = []
+
+func _apply_pos(value: Vector3) -> void:
+	_target_pos = value
+	if not _has_target or position.distance_to(value) > SNAP_DISTANCE:
+		position = value
+	_has_target = true
+
+## Si el simulador está activo, descarta o retiene el estado recibido (true = no aplicarlo ya).
+func _sim_queue_state(kind: int, value: Variant) -> bool:
+	if not is_inside_tree() or not NetworkManager.sim_active():
+		return false
+	if not NetworkManager.sim_drop():
+		_sim_states.append([Time.get_ticks_msec() + NetworkManager.sim_delay_ms(), kind, value])
+	return true
+
+## Aplica/envía lo retenido cuyo retraso ya se cumplió (en orden de llegada).
+func _sim_flush() -> void:
+	var now := Time.get_ticks_msec()
+	while not _sim_states.is_empty() and _sim_states[0][0] <= now:
+		var s: Array = _sim_states.pop_front()
+		if s[1] == 0:
+			_apply_pos(s[2])
+		else:
+			_target_yaw = s[2]
+	while not _sim_inputs.is_empty() and _sim_inputs[0][0] <= now:
+		var i: Array = _sim_inputs.pop_front()
+		receive_input.rpc_id(1, i[1], i[2], i[3], i[4])
 
 ## Resistencia para correr. La calcula el servidor y se replica (HUD del dueño).
 @export var stamina: float = MAX_STAMINA
@@ -315,7 +345,11 @@ func _capture_input() -> void:
 		_store_input(move, aim.x, aim.y, buttons)
 	else:
 		# Cliente -> servidor. Solo se envía la intención, nunca la posición.
-		receive_input.rpc_id(1, move, aim.x, aim.y, buttons)
+		if NetworkManager.sim_active():
+			if not NetworkManager.sim_drop():
+				_sim_inputs.append([Time.get_ticks_msec() + NetworkManager.sim_delay_ms(), move, aim.x, aim.y, buttons])
+		else:
+			receive_input.rpc_id(1, move, aim.x, aim.y, buttons)
 		# Predicción visual mínima: girar hacia la mira sin esperar al servidor.
 		visual.rotation.y = aim.x
 
@@ -353,6 +387,7 @@ func _store_input(move: Vector2, aim: float, pitch: float, buttons: int) -> void
 
 # ---------------- Simulación (solo servidor) ----------------
 func _physics_process(delta: float) -> void:
+	_sim_flush()
 	var game = _game()
 	var playing: bool = game != null and game.is_playing()
 	if is_local() and not is_dead and capture_enabled and playing:

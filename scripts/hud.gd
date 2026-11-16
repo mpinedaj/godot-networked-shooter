@@ -209,6 +209,7 @@ func _process(_delta: float) -> void:
 	txt += "Jugadores: %d\n" % NetworkManager.get_player_count()
 	txt += "Ping (RTT): %s\n" % NetworkManager.get_ping_text()
 	txt += NetworkManager.get_traffic_text() + "\n"
+	txt += NetworkManager.sim_text() + "\n"
 	txt += "FPS: %d" % Engine.get_frames_per_second()
 	debug_label.text = txt
 
@@ -224,3 +225,10 @@ func _input(event: InputEvent) -> void:
 		debug_visible = not debug_visible
 		debug_panel.visible = debug_visible
 		get_viewport().set_input_as_handled()
+	# Simulador de mala red (con el panel F3 abierto): F4 retraso, F5 pérdida.
+	elif event is InputEventKey and event.pressed and not event.echo and debug_visible:
+		var nm := NetworkManager
+		if event.keycode == KEY_F4:
+			nm.sim_delay_idx = (nm.sim_delay_idx + 1) % nm.SIM_DELAYS.size()
+		elif event.keycode == KEY_F5:
+			nm.sim_loss_idx = (nm.sim_loss_idx + 1) % nm.SIM_LOSSES.size()
