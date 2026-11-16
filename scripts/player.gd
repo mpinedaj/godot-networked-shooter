@@ -44,6 +44,8 @@ const IDLE_SECTION := Vector2(1.0, 4.0)
 const RUN_SECTION := Vector2(6.7, 7.8)
 
 var peer_id: int = 0
+## Nombre elegido en el menú (vacío = el nombre del color).
+var player_name: String = ""
 ## Ranura del jugador (0..7): define color y nombre. La asigna el servidor
 ## y viaja en los datos de spawn, así que es igual en todos los peers.
 var slot: int = 0
@@ -132,16 +134,18 @@ func _ready() -> void:
 	_apply_dead_state()
 	_update_label()
 
-func setup(p_peer_id: int, p_slot: int) -> void:
+func setup(p_peer_id: int, p_slot: int, p_name: String = "") -> void:
 	peer_id = p_peer_id
 	slot = p_slot
+	player_name = p_name
 	name = str(peer_id)  # Nombre igual en todos los peers (ruta de los RPC).
 
 func get_color() -> Color:
 	return COLORS[slot % COLORS.size()]
 
 func get_display_name() -> String:
-	return COLOR_NAMES[slot % COLOR_NAMES.size()] + (" (host)" if peer_id == 1 else "")
+	var n: String = player_name if player_name != "" else COLOR_NAMES[slot % COLOR_NAMES.size()]
+	return n + (" (host)" if peer_id == 1 else "")
 
 func is_local() -> bool:
 	return peer_id == multiplayer.get_unique_id()

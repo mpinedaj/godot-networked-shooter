@@ -35,18 +35,22 @@ var spawn_points: Array[Vector3] = [
 
 func _ready() -> void:
 	_build_map()
-	# Spawner de jugadores con función propia: los datos de spawn son [peer_id, slot].
+	# Spawner de jugadores con función propia: los datos de spawn son [peer_id, slot, nombre].
+	# El servidor crea al jugador cuando el cliente se presenta (request_spawn).
 	spawner_players.spawn_function = _spawn_player_custom
 	# Balas: cualquier bullet.tscn añadida bajo Bullets en el servidor se replica sola.
 	$SpawnerBullets.add_spawnable_scene("res://scenes/bullet.tscn")
-	NetworkManager.peer_joined.connect(_on_peer_joined)
 	NetworkManager.peer_left.connect(_on_peer_left)
 	NetworkManager.server_disconnected_sig.connect(_on_lost_connection.bind("El servidor se desconectó."))
 	NetworkManager.connection_failed_sig.connect(_on_lost_connection.bind("No se pudo conectar. Verifica IP, puerto y firewall."))
 	hud.setup(self)
 	if multiplayer.is_server():
 		# El host también juega: spawnea su propio jugador.
-		_server_spawn_player(1)
+		_server_spawn_player(1, NetworkManager.player_name)
+	elif multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+		_send_hello()
+	else:
+		NetworkManager.connected_to_server_ok.connect(_send_hello, CONNECT_ONE_SHOT)
 
 func _process(_delta: float) -> void:
 	# Cada peer sigue a SU jugador (la cámara es local, no se replica).
@@ -174,7 +178,20 @@ func random_spawn_point() -> Vector3:
 	return spawn_points[randi() % spawn_points.size()]
 
 # ---------------- Jugadores ----------------
-func _server_spawn_player(peer_id: int) -> void:
+## Cliente: al conectarse se presenta al servidor con su nombre.
+func _send_hello() -> void:
+	request_spawn.rpc_id(1, NetworkManager.player_name)
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_spawn(player_name: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not multiplayer.is_server() or players_node.has_node(str(id)):
+		return
+	_server_spawn_player(id, player_name)
+
+func _server_spawn_player(peer_id: int, player_name: String) -> void:
+	# El servidor no confía en el cliente: limpia y recorta el nombre.
+	player_name = player_name.strip_edges().replace("\n", " ").left(16)
 	# Ranura libre más baja (define color/nombre y punto de aparición inicial).
 	var used: Array = []
 	for p in players_node.get_children():
@@ -183,13 +200,13 @@ func _server_spawn_player(peer_id: int) -> void:
 	while slot in used:
 		slot += 1
 	kills_map[peer_id] = 0
-	spawner_players.spawn([peer_id, slot])
+	spawner_players.spawn([peer_id, slot, player_name])
 	_broadcast_kills()
 
 func _spawn_player_custom(data: Variant) -> Node:
 	# Se ejecuta en el servidor y en cada cliente con los mismos datos.
 	var p = PLAYER_SCENE.instantiate()
-	p.setup(int(data[0]), int(data[1]))
+	p.setup(int(data[0]), int(data[1]), str(data[2]))
 	# La posición real llega replicada (spawn=true); esto es el valor del servidor.
 	p.position = spawn_points[int(data[1]) % spawn_points.size()]
 	return p
@@ -203,11 +220,6 @@ func get_local_player() -> Node:
 func get_player_name(peer_id: int) -> String:
 	var p = players_node.get_node_or_null(str(peer_id))
 	return p.get_display_name() if p else "Peer %d" % peer_id
-
-func _on_peer_joined(peer_id: int) -> void:
-	if not multiplayer.is_server():
-		return
-	_server_spawn_player(peer_id)
 
 func _on_peer_left(peer_id: int) -> void:
 	if not multiplayer.is_server():

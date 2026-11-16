@@ -19,6 +19,8 @@ const MAX_PLAYERS: int = 8
 var peer: ENetMultiplayerPeer = null
 var is_host: bool = false
 var port: int = DEFAULT_PORT
+## Nombre que el jugador escribió en el menú (vacío = usar el del color).
+var player_name: String = ""
 ## Mensaje para mostrar en el menú al volver (p. ej. "El servidor se desconectó").
 var last_message: String = ""
 ## IP del servidor al que se conectó este cliente (vacío si somos el host).
