@@ -21,8 +21,11 @@ const ThirdPersonCamera := preload("res://scripts/third_person_camera.gd")
 var camera = null  # third_person_camera.gd
 
 ## Estado de la partida. Lo decide el servidor y lo replica con sync_state.
-enum State { LOBBY, PLAYING }
+enum State { LOBBY, PLAYING, ENDED }
+const KILLS_TO_WIN := 10
+const END_SCREEN_TIME := 6.0  # s mostrando al ganador antes de la siguiente ronda.
 var state: int = State.LOBBY
+var winner_name: String = ""
 
 var kills_map: Dictionary = {}  # peer_id -> kills (autoritativo en el servidor)
 var _bullet_counter: int = 0
@@ -48,7 +51,7 @@ func _ready() -> void:
 	NetworkManager.server_disconnected_sig.connect(_on_lost_connection.bind("El servidor se desconectó."))
 	NetworkManager.connection_failed_sig.connect(_on_lost_connection.bind("No se pudo conectar. Verifica IP, puerto y firewall."))
 	hud.setup(self)
-	sync_state(State.LOBBY)  # Todos empiezan en la sala de espera hasta saber el estado real.
+	sync_state(State.LOBBY, "")  # Todos empiezan en la sala de espera hasta saber el estado real.
 	if multiplayer.is_server():
 		# El host también juega: spawnea su propio jugador.
 		_server_spawn_player(1, NetworkManager.player_name)
@@ -193,7 +196,7 @@ func request_spawn(player_name: String) -> void:
 	if not multiplayer.is_server() or players_node.has_node(str(id)):
 		return
 	_server_spawn_player(id, player_name)
-	sync_state.rpc_id(id, state)  # Quien entra tarde recibe el estado actual.
+	sync_state.rpc_id(id, state, winner_name)  # Quien entra tarde recibe el estado actual.
 
 func _server_spawn_player(peer_id: int, player_name: String) -> void:
 	# El servidor no confía en el cliente: limpia y recorta el nombre.
@@ -231,12 +234,13 @@ func start_match() -> void:
 	_broadcast_kills()
 	for p in players_node.get_children():
 		p.reset_for_round(spawn_points[p.slot % spawn_points.size()])
-	sync_state.rpc(State.PLAYING)
+	sync_state.rpc(State.PLAYING, "")
 
 @rpc("authority", "call_local", "reliable")
-func sync_state(new_state: int) -> void:
+func sync_state(new_state: int, winner: String) -> void:
 	var was_lobby := state == State.LOBBY
 	state = new_state
+	winner_name = winner
 	# En la sala el mouse queda libre para pulsar "Iniciar"; al empezar se captura.
 	camera.allow_capture = state != State.LOBBY
 	if state == State.LOBBY:
@@ -269,6 +273,10 @@ func _on_peer_left(peer_id: int) -> void:
 func player_killed(killer_peer: int, victim_peer: int) -> void:
 	kills_map[killer_peer] = kills_map.get(killer_peer, 0) + 1
 	_broadcast_kills()
+	if state == State.PLAYING and kills_map[killer_peer] >= KILLS_TO_WIN:
+		# Fin de partida: todos ven al ganador y luego empieza otra ronda sola.
+		sync_state.rpc(State.ENDED, get_player_name(killer_peer))
+		get_tree().create_timer(END_SCREEN_TIME).timeout.connect(start_match)
 	# Se envían los nombres ya resueltos: el cliente no tiene que buscarlos.
 	kill_feed.rpc(get_player_name(killer_peer), get_player_name(victim_peer))
 

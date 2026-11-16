@@ -21,6 +21,9 @@ var _kill_feed: VBoxContainer = null
 var _lobby: PanelContainer = null
 var _lobby_players: Label = null
 var _start_button: Button = null
+# Pantalla de fin de partida (ganador y cuenta atrás).
+var _end_label: Label = null
+var _end_time: int = 0
 
 # Estado del jugador local (abajo a la derecha): vida, balas y resistencia.
 var _stats_label: Label = null
@@ -52,18 +55,39 @@ func _build_lobby() -> void:
 	box.add_child(title)
 	_lobby_players = Label.new()
 	box.add_child(_lobby_players)
+	var goal := Label.new()
+	goal.text = "Gana quien llegue primero a %d eliminaciones." % game.KILLS_TO_WIN
+	goal.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
+	box.add_child(goal)
 	_start_button = Button.new()
 	_start_button.text = "Iniciar partida"
 	_start_button.pressed.connect(func(): game.start_match())
 	box.add_child(_start_button)
+	_end_label = Label.new()
+	_end_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_end_label.offset_left = -400
+	_end_label.offset_right = 400
+	_end_label.offset_top = -120
+	_end_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_end_label.add_theme_font_size_override("font_size", 48)
+	_end_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
+	_end_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_end_label.add_theme_constant_override("outline_size", 10)
+	add_child(_end_label)
 
 func on_state_changed() -> void:
 	if _lobby == null:
 		return
 	_lobby.visible = game.state == game.State.LOBBY
 	_start_button.visible = multiplayer.is_server()
+	_end_label.visible = game.state == game.State.ENDED
+	_end_time = Time.get_ticks_msec() + int(game.END_SCREEN_TIME * 1000)
 
 func _update_lobby() -> void:
+	if _end_label.visible:
+		var left := ceili(maxf(0.0, _end_time - Time.get_ticks_msec()) / 1000.0)
+		_end_label.text = "¡%s gana!\n" % game.winner_name
+		_end_label.text += "Nueva partida en %d s" % left
 	if not _lobby.visible:
 		return
 	var names: Array[String] = []
