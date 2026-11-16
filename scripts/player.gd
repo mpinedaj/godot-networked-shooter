@@ -50,8 +50,14 @@ var slot: int = 0
 
 @export var health: int = MAX_HEALTH:
 	set(value):
+		var hurt := value < health
 		health = value
 		_update_label()
+		# Borde rojo en la pantalla de quien recibe el daño (la vida ya llega replicada).
+		if hurt and is_inside_tree() and is_local():
+			var game = _game()
+			if game:
+				game.hud.show_damage()
 
 @export var is_dead: bool = false:
 	set(value):
@@ -139,6 +145,9 @@ func get_display_name() -> String:
 
 func is_local() -> bool:
 	return peer_id == multiplayer.get_unique_id()
+
+func _game() -> Node:
+	return get_node_or_null("../..")
 
 ## Orientación de disparo para un yaw y pitch dados (Godot: -Z es "adelante").
 static func aim_basis(yaw: float, pitch: float) -> Basis:
@@ -388,7 +397,7 @@ func _start_reload() -> void:
 
 func _spawn_bullet() -> void:
 	# En el servidor: se añade bajo Game/Bullets y el MultiplayerSpawner la replica.
-	var game = get_parent().get_parent()
+	var game = _game()
 	var b = BULLET_SCENE.instantiate()
 	# Nace en el arma (dentro del propio cuerpo, que la bala ignora): así no
 	# puede aparecer al otro lado de una pared pegada al jugador.
@@ -406,6 +415,9 @@ func take_damage(amount: int, from_peer: int) -> void:
 	if not multiplayer.is_server() or is_dead:
 		return
 	health = max(0, health - amount)
+	var game = _game()
+	if game:
+		game.notify_hit(from_peer, health == 0)  # Marca de acierto para el tirador.
 	if health == 0:
 		_die(from_peer)
 
@@ -413,14 +425,14 @@ func _die(killer_peer: int) -> void:
 	is_dead = true  # Se replica: los clientes lo ocultan por el setter.
 	input_buttons = 0
 	velocity = Vector3.ZERO
-	var game = get_parent().get_parent()
-	if game and game.has_method("add_kill"):
-		game.add_kill(killer_peer)
+	var game = _game()
+	if game:
+		game.player_killed(killer_peer, peer_id)
 	# Si el jugador se va antes, la conexión del timer se elimina sola.
 	get_tree().create_timer(RESPAWN_TIME).timeout.connect(_respawn)
 
 func _respawn() -> void:
-	var game = get_parent().get_parent()
+	var game = _game()
 	if game and game.has_method("random_spawn_point"):
 		global_position = game.random_spawn_point()
 	health = MAX_HEALTH

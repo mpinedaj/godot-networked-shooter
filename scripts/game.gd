@@ -219,9 +219,20 @@ func _on_peer_left(peer_id: int) -> void:
 	_broadcast_kills()
 
 # ---------------- Marcador ----------------
-func add_kill(peer_id: int) -> void:
-	kills_map[peer_id] = kills_map.get(peer_id, 0) + 1
+## Servidor: un jugador eliminó a otro.
+func player_killed(killer_peer: int, victim_peer: int) -> void:
+	kills_map[killer_peer] = kills_map.get(killer_peer, 0) + 1
 	_broadcast_kills()
+
+## Servidor: avisar SOLO al tirador de que acertó (si el tirador es el host,
+## call_local hace que se ejecute aquí mismo sin pasar por la red).
+func notify_hit(shooter_peer: int, killed: bool) -> void:
+	if shooter_peer == 1 or shooter_peer in multiplayer.get_peers():
+		hit_marker.rpc_id(shooter_peer, killed)
+
+@rpc("authority", "call_local", "reliable")
+func hit_marker(killed: bool) -> void:
+	hud.show_hit_marker(killed)
 
 func _broadcast_kills() -> void:
 	sync_kills.rpc(kills_map)

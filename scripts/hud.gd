@@ -9,6 +9,11 @@ var debug_visible: bool = false
 @onready var kills_label: Label = $KillsLabel
 @onready var status_label: Label = $StatusLabel
 
+# Aviso de daño (borde rojo) y marca de acierto.
+var _damage_overlay: TextureRect = null
+var _hit_marker: Control = null
+var _hit_color: Color = Color.WHITE
+
 # Estado del jugador local (abajo a la derecha): vida, balas y resistencia.
 var _stats_label: Label = null
 var _stamina_bar: ProgressBar = null
@@ -18,6 +23,46 @@ func setup(g: Node) -> void:
 	debug_panel.visible = false
 	update_kills({})
 	_build_stats()
+	_build_feedback()
+
+func _build_feedback() -> void:
+	# Borde rojo: degradado radial transparente en el centro y rojo en los bordes.
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.8, 0, 0, 0))
+	grad.set_color(1, Color(0.8, 0, 0, 0.75))
+	grad.add_point(0.55, Color(0.8, 0, 0, 0))
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(0.5, 0.0)
+	_damage_overlay = TextureRect.new()
+	_damage_overlay.texture = tex
+	_damage_overlay.stretch_mode = TextureRect.STRETCH_SCALE
+	_damage_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_damage_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_damage_overlay.modulate.a = 0.0
+	add_child(_damage_overlay)
+	move_child(_damage_overlay, 0)  # Detrás de los textos.
+	# Marca de acierto: cuatro rayitas en diagonal alrededor de la mira.
+	_hit_marker = Control.new()
+	_hit_marker.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_hit_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hit_marker.modulate.a = 0.0
+	_hit_marker.draw.connect(func():
+		for d in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
+			_hit_marker.draw_line(d * 7, d * 16, _hit_color, 3.0, true))
+	add_child(_hit_marker)
+
+func show_damage() -> void:
+	_damage_overlay.modulate.a = 1.0
+	create_tween().tween_property(_damage_overlay, "modulate:a", 0.0, 0.5)
+
+func show_hit_marker(killed: bool) -> void:
+	_hit_color = Color(1, 0.2, 0.2) if killed else Color.WHITE
+	_hit_marker.queue_redraw()
+	_hit_marker.modulate.a = 1.0
+	create_tween().tween_property(_hit_marker, "modulate:a", 0.0, 0.35 if killed else 0.2)
 
 func _build_stats() -> void:
 	var box := VBoxContainer.new()
