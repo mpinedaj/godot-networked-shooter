@@ -7,6 +7,7 @@ var debug_visible: bool = false
 @onready var debug_panel: Control = $DebugPanel
 @onready var debug_label: Label = $DebugPanel/DebugLabel
 @onready var kills_label: Label = $KillsLabel
+@onready var status_label: Label = $StatusLabel
 
 func setup(g: Node) -> void:
 	game = g
@@ -14,14 +15,21 @@ func setup(g: Node) -> void:
 	update_kills({})
 
 func _process(_delta: float) -> void:
+	# Aviso mientras el cliente aún no recibe su jugador del servidor.
+	var waiting: bool = game != null and not NetworkManager.is_host and not game.has_local_player()
+	status_label.visible = waiting
+	if waiting:
+		status_label.text = "Conectando a %s ..." % NetworkManager.get_server_text()
 	if not debug_visible:
 		return
 	var txt := ""
 	txt += "Rol: %s\n" % NetworkManager.get_role()
 	txt += "Mi peer id: %d\n" % multiplayer.get_unique_id()
-	txt += "IP local: %s  Puerto: %d (UDP)\n" % [NetworkManager.get_local_ip(), NetworkManager.port]
+	txt += "IP local: %s\n" % NetworkManager.get_local_ip()
+	txt += "Servidor: %s (UDP)\n" % NetworkManager.get_server_text()
 	txt += "Jugadores: %d\n" % NetworkManager.get_player_count()
 	txt += "Ping (RTT): %s\n" % NetworkManager.get_ping_text()
+	txt += NetworkManager.get_traffic_text() + "\n"
 	txt += "FPS: %d" % Engine.get_frames_per_second()
 	debug_label.text = txt
 
