@@ -27,7 +27,7 @@ Controls: WASD to move, mouse to look, left click to shoot, F3 for the network p
 | [docs/simulacion-packet-tracer.md](docs/simulacion-packet-tracer.md) | Cisco Packet Tracer simulation, router configuration and verification |
 | [docs/red-lan-wan-lan.pkt](docs/red-lan-wan-lan.pkt) | Packet Tracer file (9.0.1) |
 | [docs/prueba-real.md](docs/prueba-real.md) | Guide for the test with two physical PCs and routers |
-| [docs/informe-ieee.docx](docs/informe-ieee.docx) | Project report in IEEE format |
+| [docs/informe/main.tex](docs/informe/main.tex) | Project report in IEEE format (LaTeX, IEEEtran) |
 
 ## Technologies and Tools
 - **Game Engine:** Godot 4.7 (3D)
