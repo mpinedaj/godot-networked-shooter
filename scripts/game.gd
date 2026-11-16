@@ -28,6 +28,11 @@ const QUADRANT_WALLS := [
 	[7.0, 9.5, COVER_THICKNESS, 2.0, LOW],     # Cobertura en el pasillo.
 ]
 const QUADRANT_CRATES := [Vector2(8.5, 2.5), Vector2(9.5, 10.5)]
+## Botiquines en puntos fijos (simétricos). El servidor decide quién lo recoge.
+const MEDKIT_POINTS := [Vector3(9.5, 0, 0), Vector3(-9.5, 0, 0), Vector3(0, 0, 4.5), Vector3(0, 0, -4.5)]
+const MEDKIT_HEAL := 50
+const MEDKIT_RESPAWN := 20.0  # s
+const MEDKIT_RADIUS := 0.9    # m: distancia para recogerlo.
 ## Color de cada cuarto de esquina (luz y piso), para orientarse: [x, z, color].
 const ZONES := [
 	[15.0, 9.0, Color(0.95, 0.3, 0.25)], [-15.0, 9.0, Color(0.3, 0.5, 1.0)],
@@ -51,6 +56,9 @@ var state: int = State.LOBBY
 var winner_name: String = ""
 
 var kills_map: Dictionary = {}  # peer_id -> kills (autoritativo en el servidor)
+var medkit_ready: Array[bool] = []  # Disponible o no, por botiquín (lo replica el servidor).
+var _medkits: Array[Node3D] = []    # Visual de cada botiquín (local).
+var _round: int = 0  # Sube en cada ronda: anula las reapariciones de botiquines de antes.
 var _bullet_counter: int = 0
 ## Los dos primeros (los primeros jugadores) quedan en lados opuestos.
 var spawn_points: Array[Vector3] = [
@@ -88,6 +96,15 @@ func _process(_delta: float) -> void:
 	# Cada peer sigue a SU jugador (la cámara es local, no se replica).
 	if not is_instance_valid(camera.target):
 		camera.target = players_node.get_node_or_null(str(multiplayer.get_unique_id()))
+	# Botiquines: giran y flotan (solo visual, cada peer por su cuenta).
+	var t := Time.get_ticks_msec() / 1000.0
+	for m in _medkits:
+		m.rotation.y = t * 1.5
+		m.position.y = 0.45 + sin(t * 3.0) * 0.08
+
+func _physics_process(_delta: float) -> void:
+	if multiplayer.is_server() and is_playing():
+		_check_medkits()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
@@ -107,6 +124,7 @@ func _build_map() -> void:
 	(ground.get_child(1) as MeshInstance3D).material_override = _floor_material()
 	map_node.add_child(ground)
 	_build_zones()
+	_build_medkits()
 
 	var walls := Node3D.new()
 	walls.name = "Walls"
@@ -204,6 +222,59 @@ func _floor_material() -> StandardMaterial3D:
 	m.uv1_scale = Vector3.ONE * 0.25  # 1 repetición (2x2 cuadros) cada 4 m.
 	return m
 
+func _build_medkits() -> void:
+	for p in MEDKIT_POINTS:
+		var kit := Node3D.new()
+		var body := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.5, 0.3, 0.5)
+		body.mesh = box
+		body.material_override = _mat(Color(0.95, 0.95, 0.95))
+		kit.add_child(body)
+		for s in [Vector3(0.34, 0.02, 0.1), Vector3(0.1, 0.02, 0.34)]:  # Cruz roja encima.
+			var bar := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = s
+			bar.mesh = bm
+			bar.position.y = 0.16
+			var red := _mat(Color(0.9, 0.1, 0.1))
+			red.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			bar.material_override = red
+			kit.add_child(bar)
+		kit.position = p
+		map_node.add_child(kit)
+		_medkits.append(kit)
+		medkit_ready.append(true)
+
+## Servidor: un jugador vivo y herido que toca un botiquín disponible se cura.
+func _check_medkits() -> void:
+	for i in MEDKIT_POINTS.size():
+		if not medkit_ready[i]:
+			continue
+		for p in players_node.get_children():
+			if p.is_dead or p.health >= p.MAX_HEALTH:
+				continue
+			var d: Vector3 = p.global_position - MEDKIT_POINTS[i]
+			if Vector2(d.x, d.z).length() < MEDKIT_RADIUS and absf(d.y) < 1.5:
+				p.health = mini(p.MAX_HEALTH, p.health + MEDKIT_HEAL)
+				set_medkit.rpc(i, false)
+				get_tree().create_timer(MEDKIT_RESPAWN).timeout.connect(_respawn_medkit.bind(i, _round))
+				break
+
+func _respawn_medkit(i: int, round_id: int) -> void:
+	if round_id == _round:
+		set_medkit.rpc(i, true)
+
+@rpc("authority", "call_local", "reliable")
+func set_medkit(i: int, available: bool) -> void:
+	medkit_ready[i] = available
+	_medkits[i].visible = available
+
+@rpc("authority", "call_local", "reliable")
+func sync_medkits(states: Array) -> void:
+	for i in mini(states.size(), _medkits.size()):
+		set_medkit(i, bool(states[i]))
+
 ## Cada cuarto de esquina con su color: un piso tintado y una luz.
 func _build_zones() -> void:
 	for z in ZONES:
@@ -282,6 +353,7 @@ func request_spawn(player_name: String) -> void:
 		return
 	_server_spawn_player(id, player_name)
 	sync_state.rpc_id(id, state, winner_name)  # Quien entra tarde recibe el estado actual.
+	sync_medkits.rpc_id(id, medkit_ready)
 
 func _server_spawn_player(peer_id: int, player_name: String) -> void:
 	# El servidor no confía en el cliente: limpia y recorta el nombre.
@@ -319,6 +391,11 @@ func start_match() -> void:
 	_broadcast_kills()
 	for p in players_node.get_children():
 		p.reset_for_round(spawn_points[p.slot % spawn_points.size()])
+	_round += 1
+	var all_ready: Array[bool] = []
+	all_ready.resize(MEDKIT_POINTS.size())
+	all_ready.fill(true)
+	sync_medkits.rpc(all_ready)
 	sync_state.rpc(State.PLAYING, "")
 
 @rpc("authority", "call_local", "reliable")
