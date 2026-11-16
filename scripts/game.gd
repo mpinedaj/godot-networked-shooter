@@ -28,6 +28,11 @@ const QUADRANT_WALLS := [
 	[7.0, 9.5, COVER_THICKNESS, 2.0, LOW],     # Cobertura en el pasillo.
 ]
 const QUADRANT_CRATES := [Vector2(8.5, 2.5), Vector2(9.5, 10.5)]
+## Color de cada cuarto de esquina (luz y piso), para orientarse: [x, z, color].
+const ZONES := [
+	[15.0, 9.0, Color(0.95, 0.3, 0.25)], [-15.0, 9.0, Color(0.3, 0.5, 1.0)],
+	[15.0, -9.0, Color(0.3, 0.9, 0.4)], [-15.0, -9.0, Color(1.0, 0.85, 0.25)],
+]
 ## Modelos del escenario y su tamaño original (medido del FBX importado).
 const WALL_MODEL := "res://Assets/Environment/Wall_01.fbx"
 const WALL_MODEL_SIZE := Vector3(4.0, 2.4, 0.3)
@@ -98,7 +103,10 @@ func _build_map() -> void:
 
 	# Suelo con colisión (los jugadores caen por gravedad): su cara superior está en y = 0.
 	var floor_size := HALF * 2 + Vector2(WALL_THICKNESS, WALL_THICKNESS) * 2
-	map_node.add_child(_make_block(Vector3(0, -1, 0), Vector3(floor_size.x, 1, floor_size.y), Color(0.55, 0.55, 0.5)))
+	var ground := _make_block(Vector3(0, -1, 0), Vector3(floor_size.x, 1, floor_size.y), Color.WHITE)
+	(ground.get_child(1) as MeshInstance3D).material_override = _floor_material()
+	map_node.add_child(ground)
+	_build_zones()
 
 	var walls := Node3D.new()
 	walls.name = "Walls"
@@ -154,21 +162,65 @@ func _build_environment() -> void:
 	camera.position = Vector3(0, 20, 16)
 	camera.look_at(Vector3.ZERO)
 	camera.make_current()
-	# Luz del sol con sombras.
+	# Luz del sol (cálida, de tarde) con sombras.
 	var sun := DirectionalLight3D.new()
 	sun.shadow_enabled = true
+	sun.light_color = Color(1.0, 0.93, 0.82)
+	sun.light_energy = 1.1
 	map_node.add_child(sun)
-	sun.rotation_degrees = Vector3(-55, -30, 0)
-	# Cielo/ambiente.
+	sun.rotation_degrees = Vector3(-50, -30, 0)
+	# Cielo procedural: también ilumina la escena (luz ambiente).
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color(0.22, 0.4, 0.72)
+	sky_mat.sky_horizon_color = Color(0.72, 0.76, 0.82)
+	sky_mat.ground_horizon_color = Color(0.6, 0.62, 0.66)
+	sky_mat.ground_bottom_color = Color(0.2, 0.2, 0.22)
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
 	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.11, 0.12, 0.15)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.6, 0.62, 0.7)
-	env.ambient_light_energy = 0.6
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.9
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	var we := WorldEnvironment.new()
 	we.environment = env
 	map_node.add_child(we)
+
+## Piso a cuadros de 2 m: una textura de 2x2 píxeles generada en código y
+## proyectada desde arriba (triplanar), así no hace falta ningún archivo.
+func _floor_material() -> StandardMaterial3D:
+	var img := Image.create(2, 2, false, Image.FORMAT_RGB8)
+	var a := Color(0.52, 0.53, 0.5)
+	var b := Color(0.45, 0.46, 0.44)
+	img.set_pixel(0, 0, a)
+	img.set_pixel(1, 1, a)
+	img.set_pixel(1, 0, b)
+	img.set_pixel(0, 1, b)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE * 0.25  # 1 repetición (2x2 cuadros) cada 4 m.
+	return m
+
+## Cada cuarto de esquina con su color: un piso tintado y una luz.
+func _build_zones() -> void:
+	for z in ZONES:
+		var color: Color = z[2]
+		var patch := MeshInstance3D.new()
+		var plane := PlaneMesh.new()
+		plane.size = Vector2(5.6, 5.6)
+		patch.mesh = plane
+		patch.material_override = _mat(color.lerp(Color(0.5, 0.5, 0.5), 0.45))
+		patch.position = Vector3(z[0], 0.01, z[1])
+		map_node.add_child(patch)
+		var light := OmniLight3D.new()
+		light.light_color = color
+		light.light_energy = 2.0
+		light.omni_range = 8.0
+		light.position = Vector3(z[0], 2.6, z[1])
+		map_node.add_child(light)
 
 func _mat(color: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
