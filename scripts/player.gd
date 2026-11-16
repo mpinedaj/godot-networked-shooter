@@ -3,7 +3,8 @@ extends CharacterBody3D
 ##  - Cada peer captura SU input. El host lo aplica directo; un cliente lo envía
 ##    al servidor por RPC (canal no fiable: si se pierde un paquete llega el siguiente).
 ##  - El servidor calcula movimiento, disparos, daño y muerte.
-##  - El MultiplayerSynchronizer replica posición/orientación/vida/estado a todos.
+##  - El MultiplayerSynchronizer replica posición/orientación/vida/estado a todos,
+##    30 veces por segundo; cada peer interpola entre un estado y el siguiente.
 
 const SPEED := 5.0  # m/s
 const MAX_HEALTH := 100
@@ -43,11 +44,37 @@ var slot: int = 0
 		is_dead = value
 		_apply_dead_state()
 
+## Estado replicado por el MultiplayerSynchronizer. El servidor lee la posición
+## y orientación reales (get); los demás peers guardan lo recibido como objetivo
+## (set) y se acercan a él suavemente en _process (interpolación).
+const INTERP_SPEED := 18.0     # Mayor = sigue más de cerca al servidor.
+const SNAP_DISTANCE := 4.0     # Saltos grandes (reaparición) no se interpolan.
+var _target_pos: Vector3 = Vector3.ZERO
+var _target_yaw: float = 0.0
+var _has_target: bool = false
+
+@export var sync_pos: Vector3:
+	get:
+		return position
+	set(value):
+		_target_pos = value
+		if not _has_target or position.distance_to(value) > SNAP_DISTANCE:
+			position = value
+		_has_target = true
+
+@export var sync_yaw: float:
+	get:
+		return visual.rotation.y if visual else 0.0
+	set(value):
+		_target_yaw = value
+
 # Input recibido (solo el servidor lo usa para simular).
 var input_move: Vector2 = Vector2.ZERO
 var input_aim: float = 0.0  # Ángulo (yaw) en radianes alrededor del eje Y.
 var input_shoot: bool = false
 var shoot_cooldown: float = 0.0
+## Si es false, este peer no lee teclado/mouse (sala de espera, fin de partida, pruebas).
+var capture_enabled: bool = true
 
 # Animación (cada peer la decide localmente según si la posición cambia).
 var anim_player: AnimationPlayer = null
@@ -193,14 +220,25 @@ func _apply_dead_state() -> void:
 		# Diferido: puede llamarse dentro de un callback de física (impacto de bala).
 		collision.set_deferred("disabled", is_dead)
 
-# ---------------- Captura de input (en el peer dueño de este jugador) ----------------
 func _process(delta: float) -> void:
+	_interpolate(delta)
 	_update_animation(delta)
 	var view_cam := get_viewport().get_camera_3d()
 	if view_cam and _bar_root:
 		_bar_root.global_basis = view_cam.global_basis  # La barra siempre de frente.
-	if not is_local() or is_dead:
+
+## En los clientes: acercar posición y orientación al último estado del servidor.
+func _interpolate(delta: float) -> void:
+	if multiplayer.is_server() or not _has_target:
 		return
+	var t := 1.0 - exp(-INTERP_SPEED * delta)
+	position = position.lerp(_target_pos, t)
+	if not is_local():  # El jugador local ya gira al instante con su propia mira.
+		visual.rotation.y = lerp_angle(visual.rotation.y, _target_yaw, t)
+
+# ---------------- Captura de input (en el peer dueño de este jugador) ----------------
+## Se llama desde _physics_process: 60 veces por segundo, sin importar los FPS.
+func _capture_input() -> void:
 	# WASD en ejes de la cámara (x = derecha, y = atrás).
 	var local := Vector2.ZERO
 	if Input.is_key_pressed(KEY_D) or Input.is_action_pressed("ui_right"):
@@ -264,6 +302,8 @@ func _store_input(move: Vector2, aim: float, shoot: bool) -> void:
 
 # ---------------- Simulación (solo servidor) ----------------
 func _physics_process(delta: float) -> void:
+	if is_local() and not is_dead and capture_enabled:
+		_capture_input()
 	if not multiplayer.is_server():
 		return
 	if is_dead:
