@@ -152,8 +152,11 @@ func add_kill_feed(killer_name: String, victim_name: String) -> void:
 	l.add_theme_color_override("font_outline_color", Color.BLACK)
 	l.add_theme_constant_override("outline_size", 6)
 	_kill_feed.add_child(l)
-	if _kill_feed.get_child_count() > KILL_FEED_MAX:
-		_kill_feed.get_child(0).queue_free()
+	while _kill_feed.get_child_count() > KILL_FEED_MAX:
+		# Sacarla ya del contenedor: queue_free solo la borra al final del cuadro.
+		var old := _kill_feed.get_child(0)
+		_kill_feed.remove_child(old)
+		old.queue_free()
 	var tw := l.create_tween()
 	tw.tween_interval(KILL_FEED_TIME)
 	tw.tween_property(l, "modulate:a", 0.0, 0.5)
