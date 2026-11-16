@@ -6,11 +6,22 @@ extends CharacterBody3D
 ##  - El MultiplayerSynchronizer replica posición/orientación/vida/estado a todos,
 ##    30 veces por segundo; cada peer interpola entre un estado y el siguiente.
 
-const SPEED := 5.0  # m/s
+const WALK_SPEED := 5.0     # m/s
+const SPRINT_SPEED := 8.0   # m/s (gasta resistencia)
+const JUMP_VELOCITY := 6.5  # m/s; con GRAVITY da un salto de ~1,2 m
+const GRAVITY := 18.0       # m/s²
+const MAX_STAMINA := 100.0
+const STAMINA_DRAIN := 30.0   # por segundo corriendo
+const STAMINA_REGEN := 20.0   # por segundo sin correr
+const STAMINA_RECOVER := 25.0 # tras agotarse, mínimo para volver a correr
 const MAX_HEALTH := 100
 const SHOOT_COOLDOWN := 0.25
-const MUZZLE_DISTANCE := 0.9  # La bala nace fuera del propio cuerpo.
-const GUN_HEIGHT := 1.0  # Altura del arma y de las balas (m).
+const GUN_HEIGHT := 1.25  # Altura del arma y de las balas (m).
+const MAX_PITCH := 1.2    # Límite de apuntado vertical que acepta el servidor (rad).
+## Botones del input, empaquetados en un entero (1 bit cada uno).
+const BTN_SHOOT := 1
+const BTN_JUMP := 2
+const BTN_SPRINT := 4
 const RESPAWN_TIME := 3.0
 const BULLET_SCENE := preload("res://scenes/bullet.tscn")
 
@@ -68,10 +79,15 @@ var _has_target: bool = false
 	set(value):
 		_target_yaw = value
 
+## Resistencia para correr. La calcula el servidor y se replica (HUD del dueño).
+@export var stamina: float = MAX_STAMINA
+var _exhausted: bool = false
+
 # Input recibido (solo el servidor lo usa para simular).
 var input_move: Vector2 = Vector2.ZERO
-var input_aim: float = 0.0  # Ángulo (yaw) en radianes alrededor del eje Y.
-var input_shoot: bool = false
+var input_aim: float = 0.0    # Yaw: giro horizontal (rad) alrededor del eje Y.
+var input_pitch: float = 0.0  # Pitch: apuntado vertical (rad), positivo = arriba.
+var input_buttons: int = 0    # Combinación de BTN_*.
 var shoot_cooldown: float = 0.0
 ## Si es false, este peer no lee teclado/mouse (sala de espera, fin de partida, pruebas).
 var capture_enabled: bool = true
@@ -116,9 +132,9 @@ func get_display_name() -> String:
 func is_local() -> bool:
 	return peer_id == multiplayer.get_unique_id()
 
-## Dirección horizontal a la que mira un yaw dado (Godot: -Z es "adelante").
-static func aim_direction(yaw: float) -> Vector3:
-	return Vector3.FORWARD.rotated(Vector3.UP, yaw)
+## Orientación de disparo para un yaw y pitch dados (Godot: -Z es "adelante").
+static func aim_basis(yaw: float, pitch: float) -> Basis:
+	return Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, pitch)
 
 # ---------------- Visual ----------------
 func _build_visual() -> void:
@@ -134,7 +150,7 @@ func _build_visual() -> void:
 	# Arma fija apuntando hacia adelante: así se ve claro hacia dónde dispara.
 	var gun: Node3D = load(GUN_MODEL).instantiate()
 	gun.scale = Vector3.ONE * 1.6
-	gun.position = Vector3(0.28, GUN_HEIGHT, -0.4)
+	gun.position = Vector3(0.28, GUN_HEIGHT - 0.1, -0.4)
 	visual.add_child(gun)
 	# Anillo de color en el suelo (no gira) para identificar al jugador.
 	var ring := MeshInstance3D.new()
@@ -251,54 +267,62 @@ func _capture_input() -> void:
 		local.y -= 1
 	var cam = get_viewport().get_camera_3d()
 	var move := local
-	var aim := visual.rotation.y
-	var shoot := false
+	var aim := Vector2(visual.rotation.y, 0.0)  # (yaw, pitch)
+	var buttons := 0
 	if cam and cam.has_method("get_yaw_basis"):
 		# Se envía la dirección YA en coordenadas del mundo: el servidor no
 		# necesita saber nada de la cámara del cliente.
 		var world: Vector3 = cam.get_yaw_basis() * Vector3(local.x, 0, local.y)
 		move = Vector2(world.x, world.z)
 		aim = _crosshair_aim(cam)
-		shoot = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and cam.is_mouse_captured() and get_window().has_focus()
+		if cam.is_mouse_captured() and get_window().has_focus():
+			if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+				buttons |= BTN_SHOOT
+			if Input.is_key_pressed(KEY_SPACE):
+				buttons |= BTN_JUMP
+			if Input.is_key_pressed(KEY_SHIFT):
+				buttons |= BTN_SPRINT
 
 	if multiplayer.is_server():
 		# El host es servidor y jugador a la vez: aplica su input sin pasar por la red.
-		_store_input(move, aim, shoot)
+		_store_input(move, aim.x, aim.y, buttons)
 	else:
 		# Cliente -> servidor. Solo se envía la intención, nunca la posición.
-		receive_input.rpc_id(1, move, aim, shoot)
+		receive_input.rpc_id(1, move, aim.x, aim.y, buttons)
 		# Predicción visual mínima: girar hacia la mira sin esperar al servidor.
-		visual.rotation.y = aim
+		visual.rotation.y = aim.x
 
-## Ángulo hacia lo que hay bajo la mira (centro de pantalla). Como la cámara va
-## sobre el hombro, disparar en paralelo a ella fallaría: apuntamos al punto
-## donde el rayo de la cámara choca (jugador, caja o muro).
-func _crosshair_aim(cam: Camera3D) -> float:
+## Apuntado (yaw, pitch) hacia lo que hay bajo la mira (centro de pantalla). Como
+## la cámara va sobre el hombro, disparar en paralelo a ella fallaría: se apunta
+## desde el arma al punto donde el rayo de la cámara choca (jugador, caja o muro).
+func _crosshair_aim(cam: Camera3D) -> Vector2:
 	var from := cam.global_position
-	var to := from - cam.global_basis.z * 60.0
+	var to := from - cam.global_basis.z * 80.0
 	var query := PhysicsRayQueryParameters3D.create(from, to)
 	query.exclude = [get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	var target: Vector3 = to if hit.is_empty() else hit.position
-	var d := target - global_position
-	d.y = 0
-	if d.length() < 1.0:
-		return cam.yaw  # Objetivo pegado al jugador: usar la dirección de la cámara.
-	return atan2(-d.x, -d.z)
+	var d := target - (global_position + Vector3(0, GUN_HEIGHT, 0))
+	var flat := Vector2(d.x, d.z).length()
+	if flat < 1.0:
+		return Vector2(cam.yaw, cam.pitch)  # Objetivo pegado al jugador: usar la cámara.
+	return Vector2(atan2(-d.x, -d.z), atan2(d.y, flat))
 
 @rpc("any_peer", "call_remote", "unreliable_ordered", 0)
-func receive_input(move: Vector2, aim: float, shoot: bool) -> void:
+func receive_input(move: Vector2, aim: float, pitch: float, buttons: int) -> void:
 	if not multiplayer.is_server():
 		return
 	# Solo el dueño de este jugador puede controlarlo.
 	if multiplayer.get_remote_sender_id() != peer_id:
 		return
-	_store_input(move, aim, shoot)
+	_store_input(move, aim, pitch, buttons)
 
-func _store_input(move: Vector2, aim: float, shoot: bool) -> void:
-	input_move = move.limit_length(1.0)  # El servidor no confía en el cliente.
+func _store_input(move: Vector2, aim: float, pitch: float, buttons: int) -> void:
+	# El servidor no confía en el cliente: recorta todo a rangos válidos.
+	input_move = move.limit_length(1.0)
 	input_aim = aim
-	input_shoot = shoot
+	input_pitch = clampf(pitch, -MAX_PITCH, MAX_PITCH)
+	input_buttons = buttons
 
 # ---------------- Simulación (solo servidor) ----------------
 func _physics_process(delta: float) -> void:
@@ -310,20 +334,42 @@ func _physics_process(delta: float) -> void:
 		return
 	visual.rotation.y = input_aim
 	shoot_cooldown -= delta
-	if input_shoot and shoot_cooldown <= 0.0:
+	if input_buttons & BTN_SHOOT and shoot_cooldown <= 0.0:
 		shoot_cooldown = SHOOT_COOLDOWN
-		_spawn_bullet(input_aim)
-	velocity = Vector3(input_move.x, 0, input_move.y) * SPEED
+		_spawn_bullet()
+
+	# Correr: gasta resistencia; si se agota hay que recuperar un mínimo.
+	var moving := input_move.length() > 0.1
+	var sprinting := bool(input_buttons & BTN_SPRINT) and moving and not _exhausted
+	if sprinting:
+		stamina = maxf(0.0, stamina - STAMINA_DRAIN * delta)
+		if stamina == 0.0:
+			_exhausted = true
+	else:
+		stamina = minf(MAX_STAMINA, stamina + STAMINA_REGEN * delta)
+		if stamina >= STAMINA_RECOVER:
+			_exhausted = false
+
+	var speed := SPRINT_SPEED if sprinting else WALK_SPEED
+	velocity.x = input_move.x * speed
+	velocity.z = input_move.y * speed
+	# Gravedad y salto.
+	if is_on_floor():
+		velocity.y = JUMP_VELOCITY if input_buttons & BTN_JUMP else 0.0
+	else:
+		velocity.y -= GRAVITY * delta
 	move_and_slide()
 
-func _spawn_bullet(aim: float) -> void:
+func _spawn_bullet() -> void:
 	# En el servidor: se añade bajo Game/Bullets y el MultiplayerSpawner la replica.
 	var game = get_parent().get_parent()
 	var b = BULLET_SCENE.instantiate()
-	var origin := global_position + Vector3(0, GUN_HEIGHT, 0)
-	b.position = origin + aim_direction(aim) * MUZZLE_DISTANCE
-	b.rotation.y = aim
+	# Nace en el arma (dentro del propio cuerpo, que la bala ignora): así no
+	# puede aparecer al otro lado de una pared pegada al jugador.
+	b.position = global_position + Vector3(0, GUN_HEIGHT, 0)
+	b.basis = aim_basis(input_aim, input_pitch)
 	b.shooter_peer = peer_id
+	b.shooter_rid = get_rid()
 	# Nombre único: si se reutiliza un nombre de una bala ya destruida, los
 	# clientes pueden confundir los paquetes de sincronización de ambas.
 	b.name = "B%d_%d" % [peer_id, game.next_bullet_id()]
@@ -339,7 +385,8 @@ func take_damage(amount: int, from_peer: int) -> void:
 
 func _die(killer_peer: int) -> void:
 	is_dead = true  # Se replica: los clientes lo ocultan por el setter.
-	input_shoot = false
+	input_buttons = 0
+	velocity = Vector3.ZERO
 	var game = get_parent().get_parent()
 	if game and game.has_method("add_kill"):
 		game.add_kill(killer_peer)
@@ -351,4 +398,6 @@ func _respawn() -> void:
 	if game and game.has_method("random_spawn_point"):
 		global_position = game.random_spawn_point()
 	health = MAX_HEALTH
+	stamina = MAX_STAMINA
+	_exhausted = false
 	is_dead = false

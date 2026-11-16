@@ -65,13 +65,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func _build_map() -> void:
 	_build_environment()
 
-	# Suelo (solo visual: los jugadores se mueven en el plano y = 0).
-	var floor_mesh := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = HALF * 2 + Vector2(WALL_THICKNESS, WALL_THICKNESS) * 2
-	floor_mesh.mesh = plane
-	floor_mesh.material_override = _mat(Color(0.55, 0.55, 0.5))
-	map_node.add_child(floor_mesh)
+	# Suelo con colisión (los jugadores caen por gravedad): su cara superior está en y = 0.
+	var floor_size := HALF * 2 + Vector2(WALL_THICKNESS, WALL_THICKNESS) * 2
+	map_node.add_child(_make_block(Vector3(0, -1, 0), Vector3(floor_size.x, 1, floor_size.y), Color(0.55, 0.55, 0.5)))
 
 	var walls := Node3D.new()
 	walls.name = "Walls"

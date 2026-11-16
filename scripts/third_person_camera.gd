@@ -6,7 +6,7 @@ extends Camera3D
 
 const MOUSE_SENSITIVITY := 0.0025
 const PITCH_MIN := -0.9   # Mirar hacia abajo (rad).
-const PITCH_MAX := 0.35   # Mirar hacia arriba (rad).
+const PITCH_MAX := 0.6    # Mirar hacia arriba (rad).
 const PIVOT_HEIGHT := 1.6
 ## Desplazamiento relativo al pivote: derecha, arriba, atrás.
 const OFFSET := Vector3(0.6, 0.35, 3.2)
