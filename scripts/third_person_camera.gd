@@ -13,6 +13,8 @@ const OFFSET := Vector3(0.6, 0.35, 3.2)
 const COLLISION_MARGIN := 0.2
 
 var target: Node3D = null
+## Si es false (sala de espera), un clic no recaptura el mouse.
+var allow_capture: bool = true
 var yaw: float = 0.0
 var pitch: float = -0.3
 
@@ -29,7 +31,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and is_mouse_captured():
 		yaw -= event.relative.x * MOUSE_SENSITIVITY
 		pitch = clampf(pitch - event.relative.y * MOUSE_SENSITIVITY, PITCH_MIN, PITCH_MAX)
-	elif event is InputEventMouseButton and event.pressed and not is_mouse_captured():
+	elif event is InputEventMouseButton and event.pressed and not is_mouse_captured() and allow_capture:
 		# Clic con el mouse libre: volver a capturarlo (no dispara).
 		capture_mouse(true)
 		get_viewport().set_input_as_handled()

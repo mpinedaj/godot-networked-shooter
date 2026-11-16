@@ -74,6 +74,8 @@ const SNAP_DISTANCE := 4.0     # Saltos grandes (reaparición) no se interpolan.
 var _target_pos: Vector3 = Vector3.ZERO
 var _target_yaw: float = 0.0
 var _has_target: bool = false
+## Cambia al reiniciar la ronda: anula las reapariciones pendientes de antes.
+var _round_token: int = 0
 
 @export var sync_pos: Vector3:
 	get:
@@ -349,12 +351,18 @@ func _store_input(move: Vector2, aim: float, pitch: float, buttons: int) -> void
 
 # ---------------- Simulación (solo servidor) ----------------
 func _physics_process(delta: float) -> void:
-	if is_local() and not is_dead and capture_enabled:
+	var game = _game()
+	var playing: bool = game != null and game.is_playing()
+	if is_local() and not is_dead and capture_enabled and playing:
 		_capture_input()
 	if not multiplayer.is_server():
 		return
 	if is_dead:
 		return
+	if not playing:
+		# Sala de espera: quietos (solo gravedad), sin disparar.
+		input_move = Vector2.ZERO
+		input_buttons = 0
 	visual.rotation.y = input_aim
 	# Recarga: con R, o sola al intentar disparar con el cargador vacío.
 	if reloading:
@@ -416,7 +424,7 @@ func _spawn_bullet() -> void:
 
 ## Daño aplicado por el servidor cuando una bala impacta.
 func take_damage(amount: int, from_peer: int) -> void:
-	if not multiplayer.is_server() or is_dead:
+	if not multiplayer.is_server() or is_dead or not _game().is_playing():
 		return
 	health = max(0, health - amount)
 	var game = _game()
@@ -433,12 +441,26 @@ func _die(killer_peer: int) -> void:
 	if game:
 		game.player_killed(killer_peer, peer_id)
 	# Si el jugador se va antes, la conexión del timer se elimina sola.
-	get_tree().create_timer(RESPAWN_TIME).timeout.connect(_respawn)
+	get_tree().create_timer(RESPAWN_TIME).timeout.connect(_respawn.bind(_round_token))
 
-func _respawn() -> void:
+func _respawn(token: int) -> void:
+	if token != _round_token:
+		return  # Mientras tanto empezó otra ronda y ya reapareció.
 	var game = _game()
 	if game and game.has_method("random_spawn_point"):
 		global_position = game.random_spawn_point()
+	_reset_stats()
+
+## Servidor: inicio de ronda, todos vuelven a su punto con todo lleno.
+func reset_for_round(pos: Vector3) -> void:
+	_round_token += 1
+	global_position = pos
+	velocity = Vector3.ZERO
+	input_move = Vector2.ZERO
+	input_buttons = 0
+	_reset_stats()
+
+func _reset_stats() -> void:
 	health = MAX_HEALTH
 	stamina = MAX_STAMINA
 	_exhausted = false

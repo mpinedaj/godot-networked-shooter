@@ -17,6 +17,11 @@ var _hit_marker: Control = null
 var _hit_color: Color = Color.WHITE
 var _kill_feed: VBoxContainer = null
 
+# Sala de espera (centro): jugadores conectados y botón "Iniciar" para el host.
+var _lobby: PanelContainer = null
+var _lobby_players: Label = null
+var _start_button: Button = null
+
 # Estado del jugador local (abajo a la derecha): vida, balas y resistencia.
 var _stats_label: Label = null
 var _stamina_bar: ProgressBar = null
@@ -27,6 +32,47 @@ func setup(g: Node) -> void:
 	update_kills({})
 	_build_stats()
 	_build_feedback()
+	_build_lobby()
+	on_state_changed()
+
+func _build_lobby() -> void:
+	_lobby = PanelContainer.new()
+	_lobby.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_lobby.custom_minimum_size = Vector2(440, 0)
+	_lobby.offset_left = -220
+	_lobby.offset_top = -170
+	add_child(_lobby)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	_lobby.add_child(box)
+	var title := Label.new()
+	title.text = "Sala de espera"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	box.add_child(title)
+	_lobby_players = Label.new()
+	box.add_child(_lobby_players)
+	_start_button = Button.new()
+	_start_button.text = "Iniciar partida"
+	_start_button.pressed.connect(func(): game.start_match())
+	box.add_child(_start_button)
+
+func on_state_changed() -> void:
+	if _lobby == null:
+		return
+	_lobby.visible = game.state == game.State.LOBBY
+	_start_button.visible = multiplayer.is_server()
+
+func _update_lobby() -> void:
+	if not _lobby.visible:
+		return
+	var names: Array[String] = []
+	for p in game.players_node.get_children():
+		names.append("  • " + p.get_display_name())
+	var txt := "Conectados (%d):\n%s" % [names.size(), "\n".join(names)]
+	if not multiplayer.is_server():
+		txt += "\n\nEsperando a que el host inicie la partida..."
+	_lobby_players.text = txt
 
 func _build_feedback() -> void:
 	# Borde rojo: degradado radial transparente en el centro y rojo en los bordes.
@@ -123,6 +169,7 @@ func _update_stats() -> void:
 
 func _process(_delta: float) -> void:
 	_update_stats()
+	_update_lobby()
 	# Aviso mientras el cliente aún no recibe su jugador del servidor.
 	var waiting: bool = game != null and not NetworkManager.is_host and not game.has_local_player()
 	status_label.visible = waiting

@@ -20,6 +20,10 @@ const ThirdPersonCamera := preload("res://scripts/third_person_camera.gd")
 ## Cámara en tercera persona del jugador local (no se replica).
 var camera = null  # third_person_camera.gd
 
+## Estado de la partida. Lo decide el servidor y lo replica con sync_state.
+enum State { LOBBY, PLAYING }
+var state: int = State.LOBBY
+
 var kills_map: Dictionary = {}  # peer_id -> kills (autoritativo en el servidor)
 var _bullet_counter: int = 0
 var spawn_points: Array[Vector3] = [
@@ -44,6 +48,7 @@ func _ready() -> void:
 	NetworkManager.server_disconnected_sig.connect(_on_lost_connection.bind("El servidor se desconectó."))
 	NetworkManager.connection_failed_sig.connect(_on_lost_connection.bind("No se pudo conectar. Verifica IP, puerto y firewall."))
 	hud.setup(self)
+	sync_state(State.LOBBY)  # Todos empiezan en la sala de espera hasta saber el estado real.
 	if multiplayer.is_server():
 		# El host también juega: spawnea su propio jugador.
 		_server_spawn_player(1, NetworkManager.player_name)
@@ -188,6 +193,7 @@ func request_spawn(player_name: String) -> void:
 	if not multiplayer.is_server() or players_node.has_node(str(id)):
 		return
 	_server_spawn_player(id, player_name)
+	sync_state.rpc_id(id, state)  # Quien entra tarde recibe el estado actual.
 
 func _server_spawn_player(peer_id: int, player_name: String) -> void:
 	# El servidor no confía en el cliente: limpia y recorta el nombre.
@@ -210,6 +216,34 @@ func _spawn_player_custom(data: Variant) -> Node:
 	# La posición real llega replicada (spawn=true); esto es el valor del servidor.
 	p.position = spawn_points[int(data[1]) % spawn_points.size()]
 	return p
+
+# ---------------- Estado de la partida ----------------
+func is_playing() -> bool:
+	return state == State.PLAYING
+
+## Servidor (botón "Iniciar" del host): marcador a cero, todos a su punto de
+## aparición con vida y munición completas, y a jugar.
+func start_match() -> void:
+	if not multiplayer.is_server():
+		return
+	for k in kills_map.keys():
+		kills_map[k] = 0
+	_broadcast_kills()
+	for p in players_node.get_children():
+		p.reset_for_round(spawn_points[p.slot % spawn_points.size()])
+	sync_state.rpc(State.PLAYING)
+
+@rpc("authority", "call_local", "reliable")
+func sync_state(new_state: int) -> void:
+	var was_lobby := state == State.LOBBY
+	state = new_state
+	# En la sala el mouse queda libre para pulsar "Iniciar"; al empezar se captura.
+	camera.allow_capture = state != State.LOBBY
+	if state == State.LOBBY:
+		camera.capture_mouse(false)
+	elif was_lobby:
+		camera.capture_mouse(true)
+	hud.on_state_changed()
 
 func has_local_player() -> bool:
 	return players_node.has_node(str(multiplayer.get_unique_id()))
