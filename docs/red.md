@@ -8,6 +8,10 @@ clientes atravesando los dos routers.
 No hay servidor dedicado: el equipo que crea la partida es el servidor
 (*listen server*). Todo es local, sin servicios en la nube.
 
+Para montarlo con equipos reales, ver [`prueba-real.md`](prueba-real.md). La guía
+[`guia-routers-sustentacion.docx`](guia-routers-sustentacion.docx) resume el
+cableado, la consola y la configuración para la sustentación con dos PC.
+
 ## Topología
 
 ```
