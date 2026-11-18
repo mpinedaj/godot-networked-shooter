@@ -1,2 +1,3 @@
-# Normalize EOL for all files that Git considers text files.
-* text=auto eol=lf
+# Los scripts de Windows necesitan fin de línea CRLF.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
