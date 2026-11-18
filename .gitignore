@@ -2,5 +2,8 @@
 .godot/
 /android/
 
+# Transcripciones que guarda tools/configurar-router.ps1
+tools/registros/
+
 # Caché de Python de los scripts auxiliares
 __pycache__/

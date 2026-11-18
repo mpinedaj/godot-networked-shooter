@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Guía: red LAN–WAN–LAN con routers reales</title>
+<style>
+  @page { size: A4; margin: 15mm 16mm 17mm 16mm; }
+  :root {
+    --ink: #1d2330; --muted: #5b6474; --line: #d9dee6; --soft: #f3f5f8;
+    --accent: #2f6fd6; --accent-soft: #e8f0fd; --warm: #c8562b; --warm-soft: #fcefe9;
+    --green: #2f8f5b; --green-soft: #e7f5ed; --code: #0f1724;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); font-size: 10.4pt; line-height: 1.48; background: #fff; }
+  h1, h2, h3 { line-height: 1.2; margin: 0; }
+  h2 { font-size: 16pt; margin: 0 0 10px; }
+  h2 .n { display: inline-block; background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 9px; margin-right: 8px; font-size: 13pt; vertical-align: 2px; }
+  h3 { font-size: 11.5pt; margin: 14px 0 6px; }
+  p { margin: 0 0 8px; }
+  ul, ol { margin: 0 0 9px; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  b { font-weight: 600; }
+  section { break-before: page; }
+  section.cont { break-before: auto; margin-top: 22px; }
+  code, kbd { font-family: Consolas, "Cascadia Mono", monospace; font-size: 9.6pt; background: var(--soft); padding: 0 4px; border-radius: 3px; }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; background: #fff; }
+  pre { font-family: Consolas, "Cascadia Mono", monospace; font-size: 9.2pt; line-height: 1.42; background: var(--code); color: #e6edf6; padding: 10px 13px; border-radius: 6px; margin: 6px 0 12px; white-space: pre-wrap; break-inside: avoid; }
+  pre .c { color: #7f8ea3; }            /* comentario */
+  pre .p { color: #8ab4ff; }            /* prompt */
+  pre .o { color: #b9c4d3; }            /* salida */
+  pre .g { color: #7ee2a8; }            /* resultado bueno */
+  .box { border-radius: 0 6px 6px 0; padding: 9px 13px; margin: 9px 0 12px; break-inside: avoid; }
+  .box .t { font-size: 8.4pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; display: block; margin-bottom: 3px; }
+  .box p:last-child, .box ul:last-child { margin-bottom: 0; }
+  .info { background: var(--accent-soft); border-left: 4px solid var(--accent); } .info .t { color: var(--accent); }
+  .ojo { background: var(--warm-soft); border-left: 4px solid var(--warm); } .ojo .t { color: var(--warm); }
+  .ok { background: var(--green-soft); border-left: 4px solid var(--green); } .ok .t { color: var(--green); }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 9.8pt; break-inside: avoid; }
+  th { text-align: left; font-weight: 600; background: var(--soft); }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td code { white-space: nowrap; }
+  figure { margin: 8px 0 12px; break-inside: avoid; }
+  figure svg { width: 100%; display: block; }
+  figcaption { font-size: 9pt; color: var(--muted); margin-top: 4px; }
+  svg text { font-family: "Segoe UI", system-ui, sans-serif; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* Imitación de la ventana de PuTTY */
+  .putty { border: 1px solid #9aa4b2; border-radius: 4px; background: #f0f0f0; font-size: 9pt; break-inside: avoid; margin: 6px 0 4px; }
+  .putty .bar { background: #fff; border-bottom: 1px solid #c9ced6; padding: 4px 8px; font-size: 9pt; }
+  .putty .body { display: grid; grid-template-columns: 34% 66%; }
+  .putty .tree { background: #fff; margin: 8px; border: 1px solid #b9c0ca; padding: 6px 8px; font-size: 8.8pt; line-height: 1.55; }
+  .putty .tree .sel { background: #cce4ff; padding: 0 3px; }
+  .putty .panel { padding: 8px 10px 10px 2px; }
+  .putty .grp { border: 1px solid #c3c9d2; border-radius: 3px; padding: 6px 8px; margin-bottom: 7px; background: #f7f7f7; }
+  .putty .lbl { color: #333; font-size: 8.6pt; }
+  .putty .fld { display: inline-block; background: #fff; border: 1px solid #8f98a6; padding: 1px 6px; min-width: 70px; font-family: Consolas, monospace; }
+  .putty .hl { outline: 2.5px solid var(--warm); outline-offset: 1px; }
+  .putty .row { display: flex; gap: 10px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
+  .putty .radio::before { content: "○ "; } .putty .radio.on::before { content: "◉ "; }
+  .putty .btn { display: inline-block; border: 1px solid #8f98a6; background: #e6e6e6; padding: 1px 12px; border-radius: 2px; }
+
+  .cover h1 { font-size: 27pt; margin: 10px 0 8px; letter-spacing: -.01em; }
+  .kicker { font-size: 9.5pt; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  .sub { font-size: 12.5pt; color: var(--muted); margin-bottom: 14px; }
+  .steps { list-style: none; padding: 0; counter-reset: s; columns: 2; column-gap: 22px; }
+  .steps li { counter-increment: s; padding: 3px 0 3px 26px; position: relative; break-inside: avoid; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 4px; width: 19px; height: 19px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 8.5pt; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+
+<!-- ============ PORTADA / RESUMEN ============ -->
+<div class="cover">
+  <div class="kicker">Redes de Computadores · Práctica con equipos reales</div>
+  <h1>Armar la red LAN–WAN–LAN con dos routers Cisco y dos PC</h1>
+  <p class="sub">Paso a paso: conectarse al router por el cable de consola con PuTTY, configurar las interfaces, cablear, poner la IP en los PC y jugar. Al final, cómo hacer lo mismo con los scripts del proyecto.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 196" role="img" aria-label="PC host, Router A, Router B, PC cliente">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fd6"/></marker></defs>
+      <rect x="6" y="6" width="300" height="150" rx="10" fill="#e8f0fd"/>
+      <rect x="414" y="6" width="300" height="150" rx="10" fill="#e7f5ed"/>
+      <text x="18" y="26" font-size="12" font-weight="700" fill="#2f6fd6">LAN A · 192.168.1.0/24</text>
+      <text x="702" y="26" font-size="12" font-weight="700" fill="#2f8f5b" text-anchor="end">LAN B · 192.168.2.0/24</text>
+      <text x="360" y="58" font-size="12" font-weight="700" fill="#c8562b" text-anchor="middle">WAN</text>
+      <text x="360" y="73" font-size="10" fill="#5b6474" text-anchor="middle">10.0.0.0/30</text>
+      <line x1="120" y1="95" x2="208" y2="95" stroke="#1d2330" stroke-width="2.5"/>
+      <line x1="262" y1="95" x2="458" y2="95" stroke="#c8562b" stroke-width="4"/>
+      <line x1="512" y1="95" x2="600" y2="95" stroke="#1d2330" stroke-width="2.5"/>
+      <rect x="22" y="70" width="98" height="50" rx="6" fill="#fff" stroke="#2f6fd6" stroke-width="2"/>
+      <text x="71" y="91" font-size="12" font-weight="700" text-anchor="middle">PC host</text>
+      <text x="71" y="108" font-size="10" text-anchor="middle">192.168.1.10</text>
+      <circle cx="235" cy="95" r="27" fill="#fff" stroke="#1d2330" stroke-width="2"/>
+      <text x="235" y="99" font-size="10.5" font-weight="700" text-anchor="middle">Router A</text>
+      <circle cx="485" cy="95" r="27" fill="#fff" stroke="#1d2330" stroke-width="2"/>
+      <text x="485" y="99" font-size="10.5" font-weight="700" text-anchor="middle">Router B</text>
+      <rect x="600" y="70" width="98" height="50" rx="6" fill="#fff" stroke="#2f8f5b" stroke-width="2"/>
+      <text x="649" y="91" font-size="12" font-weight="700" text-anchor="middle">PC cliente</text>
+      <text x="649" y="108" font-size="10" text-anchor="middle">192.168.2.10</text>
+      <g font-size="9.5" fill="#1d2330">
+        <text x="126" y="86">Ethernet</text><text x="203" y="86" text-anchor="end">G0/0</text>
+        <text x="148" y="113" fill="#5b6474">.1.1</text>
+        <text x="268" y="86">G0/1</text><text x="268" y="113" fill="#5b6474">10.0.0.1</text>
+        <text x="452" y="86" text-anchor="end">G0/1</text><text x="452" y="113" fill="#5b6474" text-anchor="end">10.0.0.2</text>
+        <text x="517" y="86">G0/0</text><text x="594" y="86" text-anchor="end">Ethernet</text>
+        <text x="550" y="113" fill="#5b6474">.2.1</text>
+      </g>
+      <text x="235" y="140" font-size="9.5" fill="#5b6474" text-anchor="middle">ruta: 192.168.2.0 → 10.0.0.2</text>
+      <text x="485" y="140" font-size="9.5" fill="#5b6474" text-anchor="middle">ruta: 192.168.1.0 → 10.0.0.1</text>
+      <path d="M 640 178 L 80 178" stroke="#2f6fd6" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#ar)"/>
+      <text x="360" y="192" font-size="10" fill="#2f6fd6" text-anchor="middle">el cliente llega al host cruzando los dos routers (el mismo diseño de Packet Tracer, sin switches)</text>
+    </svg>
+    <figcaption>Con solo dos PC no hacen falta switches: cada PC va directo a su router con un cable Ethernet. Los nombres G0/0 y G0/1 dependen del modelo de router (ver paso 4).</figcaption>
+  </figure>
+
+  <table>
+    <tr><th>Equipo</th><th>Puerto</th><th>Dirección IP</th><th>Máscara</th><th>Puerta de enlace</th></tr>
+    <tr><td><b>PC host</b></td><td>Ethernet</td><td><code>192.168.1.10</code></td><td><code>255.255.255.0</code></td><td><code>192.168.1.1</code></td></tr>
+    <tr><td>Router A</td><td>LAN (G0/0)</td><td><code>192.168.1.1</code></td><td><code>255.255.255.0</code></td><td>—</td></tr>
+    <tr><td>Router A</td><td>WAN (G0/1)</td><td><code>10.0.0.1</code></td><td><code>255.255.255.252</code></td><td>—</td></tr>
+    <tr><td>Router B</td><td>WAN (G0/1)</td><td><code>10.0.0.2</code></td><td><code>255.255.255.252</code></td><td>—</td></tr>
+    <tr><td>Router B</td><td>LAN (G0/0)</td><td><code>192.168.2.1</code></td><td><code>255.255.255.0</code></td><td>—</td></tr>
+    <tr><td><b>PC cliente</b></td><td>Ethernet</td><td><code>192.168.2.10</code></td><td><code>255.255.255.0</code></td><td><code>192.168.2.1</code></td></tr>
+  </table>
+
+  <h3>Los pasos</h3>
+  <ol class="steps">
+    <li>Tener los materiales listos</li>
+    <li>Conectar el cable de consola y ver el puerto COM</li>
+    <li>Abrir PuTTY (aquí va el 9600)</li>
+    <li>Entrar al router y ver sus interfaces</li>
+    <li>Configurar el Router A</li>
+    <li>Configurar el Router B</li>
+    <li>Conectar los cables Ethernet</li>
+    <li>Poner la IP en cada PC</li>
+    <li>Verificar con ping y tracert</li>
+    <li>Jugar</li>
+    <li>Si algo falla</li>
+    <li>Atajo: los scripts del proyecto</li>
+  </ol>
+</div>
+
+<!-- ============ 1 y 2 ============ -->
+<section>
+  <h2><span class="n">1</span>Materiales</h2>
+  <ul>
+    <li><b>Dos routers Cisco</b> (cualquier modelo con dos puertos Ethernet; por ejemplo 1841, 1941, 2901 o 2911).</li>
+    <li><b>Dos PC</b> con Windows y puerto Ethernet, con el juego y <b>PuTTY</b> instalados.</li>
+    <li><b>Un cable de consola</b>: el azul celeste que va del puerto <i>CONSOLE</i> del router al USB del PC (RJ-45 a USB, o RJ-45 a serie DB9 con un adaptador USB). Algunos routers traen además un puerto de consola mini-USB.</li>
+    <li><b>Tres cables Ethernet</b>: PC host–Router A, Router A–Router B y Router B–PC cliente.</li>
+  </ul>
+  <div class="box ojo"><span class="t">Cable entre los routers</span>
+    <p>Los routers con puertos <b>Gigabit</b> (G0/0) se arreglan solos con cualquier cable Ethernet. Si los routers son viejos, con puertos <b>FastEthernet</b> (Fa0/0), el cable <b>router–router</b> debe ser <b>cruzado</b> (como en Packet Tracer). Los cables PC–router son normales (directos). Si una luz no prende, prueben con el otro tipo de cable.</p>
+  </div>
+  <div class="box ojo"><span class="t">Wi-Fi apagado</span>
+    <p>Durante la práctica, <b>desconecten el Wi-Fi</b> de los dos PC. Muchas redes Wi-Fi usan direcciones 192.168.1.x, iguales a las de la LAN A, y Windows puede mandar los paquetes por el Wi-Fi en vez de por el cable.</p>
+  </div>
+
+  <section class="cont">
+  <h2><span class="n">2</span>El cable de consola y el puerto COM</h2>
+  <p>El cable de consola no es de red: es una conexión <b>serie</b>, como un teclado y una pantalla conectados directo al router. Sirve para configurarlo cuando todavía no tiene ninguna IP.</p>
+  <ol>
+    <li>Conecten el extremo RJ-45 al puerto <b>CONSOLE</b> del router (suele estar en la parte de atrás, marcado en azul celeste) y el USB al PC.</li>
+    <li>Enciendan el router (interruptor atrás). Los ventiladores arrancan y las luces parpadean un rato.</li>
+    <li>En el PC abran el <b>Administrador de dispositivos</b>: clic derecho en el botón Inicio → <i>Administrador de dispositivos</i>.</li>
+    <li>Desplieguen <b>Puertos (COM y LPT)</b>. Debe aparecer algo como <code>USB Serial Port (COM3)</code> o <code>Prolific USB-to-Serial Comm Port (COM4)</code>.</li>
+  </ol>
+  <div class="box info"><span class="t">Este es “el número que hay que poner”</span>
+    <p>El <b>COM3</b> (o el número que les salga) es lo que va en PuTTY en <i>Serial line</i>. Cambia de un PC a otro y de un puerto USB a otro, por eso hay que mirarlo aquí cada vez.</p>
+  </div>
+  <p>Si no aparece “Puertos (COM y LPT)” o sale un dispositivo con un triángulo amarillo, falta el controlador del cable: búsquenlo por la marca del adaptador (Prolific, FTDI, CH340) o, si es el puerto mini-USB del router, el “Cisco USB Console Driver”.</p>
+  </section>
+</section>
+
+<!-- ============ 3 ============ -->
+<section>
+  <h2><span class="n">3</span>Abrir PuTTY</h2>
+  <p>En la primera pantalla de PuTTY (<i>Session</i>):</p>
+  <div class="putty">
+    <div class="bar">PuTTY Configuration</div>
+    <div class="body">
+      <div class="tree"><span class="sel">Session</span><br>&nbsp;&nbsp;Logging<br>Terminal<br>Window<br>Connection<br>&nbsp;&nbsp;Data<br>&nbsp;&nbsp;Proxy<br>&nbsp;&nbsp;SSH<br>&nbsp;&nbsp;<b>Serial</b></div>
+      <div class="panel">
+        <div class="grp">
+          <div class="lbl">Connection type:</div>
+          <div class="row"><span class="radio">SSH</span><span class="radio on hl">Serial</span><span class="radio">Other</span></div>
+          <div class="row"><span class="lbl">Serial line</span> <span class="fld hl">COM3</span> <span class="lbl">Speed</span> <span class="fld hl">9600</span></div>
+        </div>
+        <div class="grp"><div class="lbl">Saved Sessions</div><div class="row"><span class="fld" style="min-width:150px">router-consola</span> <span class="btn">Save</span></div></div>
+        <div class="row" style="justify-content:flex-end"><span class="btn">Open</span></div>
+      </div>
+    </div>
+  </div>
+  <ol>
+    <li>En <b>Connection type</b> elijan <b>Serial</b>.</li>
+    <li>En <b>Serial line</b> escriban el puerto del paso 2, por ejemplo <code>COM3</code>.</li>
+    <li>En <b>Speed</b> escriban <code>9600</code>. <b>Ese es el número que vieron con el profesor:</b> es la velocidad de la consola de los Cisco, en bits por segundo (baudios). Si no coincide, en pantalla salen símbolos raros o nada.</li>
+  </ol>
+  <p>Luego, en el árbol de la izquierda, <b>Connection → Serial</b>, revisen que quede así:</p>
+  <div class="putty">
+    <div class="bar">PuTTY Configuration</div>
+    <div class="body">
+      <div class="tree">Session<br>Terminal<br>Window<br>Connection<br>&nbsp;&nbsp;Data<br>&nbsp;&nbsp;Proxy<br>&nbsp;&nbsp;SSH<br>&nbsp;&nbsp;<span class="sel">Serial</span></div>
+      <div class="panel"><div class="grp">
+        <div class="lbl">Configure the serial line</div>
+        <div class="row"><span class="lbl" style="width:140px">Serial line to connect to</span><span class="fld">COM3</span></div>
+        <div class="row"><span class="lbl" style="width:140px">Speed (baud)</span><span class="fld">9600</span></div>
+        <div class="row"><span class="lbl" style="width:140px">Data bits</span><span class="fld">8</span></div>
+        <div class="row"><span class="lbl" style="width:140px">Stop bits</span><span class="fld">1</span></div>
+        <div class="row"><span class="lbl" style="width:140px">Parity</span><span class="fld">None</span></div>
+        <div class="row"><span class="lbl" style="width:140px">Flow control</span><span class="fld hl">None</span></div>
+      </div></div>
+    </div>
+  </div>
+  <p>Lo único que normalmente hay que cambiar es <b>Flow control</b>: PuTTY trae <i>XON/XOFF</i> y debe quedar en <b>None</b>. Pueden volver a <i>Session</i>, escribir un nombre en <i>Saved Sessions</i> y pulsar <b>Save</b> para no repetirlo. Por último, <b>Open</b>: se abre una ventana negra.</p>
+  <div class="box info"><span class="t">Configuración completa</span><p><code>COM3 · 9600 · 8 bits de datos · sin paridad · 1 bit de parada · sin control de flujo</code>. A veces se escribe abreviado como <b>9600 8N1</b>.</p></div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section>
+  <h2><span class="n">4</span>Entrar al router y ver sus interfaces</h2>
+  <p>En la ventana negra de PuTTY pulsen <kbd>Enter</kbd> un par de veces. Según cómo esté el router, verán una de estas cosas:</p>
+  <pre><span class="o">Would you like to enter the initial configuration dialog? [yes/no]:</span> no      <span class="c">← escriban no y Enter</span>
+<span class="o">Press RETURN to get started!</span>                                         <span class="c">← Enter</span>
+<span class="p">Router&gt;</span></pre>
+  <p>El símbolo del final dice en qué <b>modo</b> está el router:</p>
+  <table>
+    <tr><th style="width:30%">Prompt</th><th>Modo</th><th>Cómo se entra / se sale</th></tr>
+    <tr><td><code>Router&gt;</code></td><td>Usuario: solo mirar lo básico.</td><td>Es donde se empieza.</td></tr>
+    <tr><td><code>Router#</code></td><td>Privilegiado: ver todo, guardar, hacer ping.</td><td><code>enable</code> · se vuelve con <code>disable</code></td></tr>
+    <tr><td><code>Router(config)#</code></td><td>Configuración general.</td><td><code>configure terminal</code> · se sale con <code>end</code></td></tr>
+    <tr><td><code>Router(config-if)#</code></td><td>Configurando una interfaz.</td><td><code>interface …</code> · se sale con <code>exit</code></td></tr>
+  </table>
+  <p>Entren al modo privilegiado y miren las interfaces:</p>
+  <pre><span class="p">Router&gt;</span> enable
+<span class="p">Router#</span> show ip interface brief
+<span class="o">Interface                  IP-Address      OK? Method Status                Protocol
+Embedded-Service-Engine0/0 unassigned      YES unset  administratively down down
+GigabitEthernet0/0         unassigned      YES unset  administratively down down
+GigabitEthernet0/1         unassigned      YES unset  administratively down down
+GigabitEthernet0/2         unassigned      YES unset  administratively down down</span></pre>
+  <ul>
+    <li>Los nombres de la primera columna son los que se usan en los comandos. En un 2911 son <code>GigabitEthernet0/0</code>, <code>0/1</code>…; en un 1841 son <code>FastEthernet0/0</code> y <code>FastEthernet0/1</code>. Si los suyos son distintos, cámbienlos en los comandos de los pasos 5 y 6.</li>
+    <li>En la parte de atrás del router, cada puerto Ethernet está marcado con su número (<i>GE 0/0</i>, <i>GE 0/1</i>, o <i>FE 0/0</i>…). Así saben dónde va cada cable.</li>
+    <li><i>administratively down</i> significa “apagado a propósito”: los puertos de un router vienen apagados hasta que se les da <code>no shutdown</code>.</li>
+    <li><code>Embedded-Service-Engine</code> es interna: no se usa.</li>
+    <li>Si aparece una <code>Vlan1</code> y varios puertos con tres números (por ejemplo <code>GigabitEthernet0/1/0</code> a <code>0/1/3</code>), el router tiene <b>puertos de switch</b>. Para confirmarlo: <code>show interfaces switchport</code> los lista con <i>Switchport: Enabled</i>. Vean el recuadro del paso 5.</li>
+  </ul>
+  <div class="box ojo"><span class="t">Si pide contraseña o ya tiene configuración</span>
+    <p>Si al escribir <code>enable</code> pide <i>Password</i>, se la piden al profesor. Si el router ya tiene IPs de otro grupo, pueden verlas con <code>show running-config</code>; los comandos de esta guía les ponen encima las suyas. No borren la configuración del router (<code>write erase</code>) sin preguntar.</p>
+  </div>
+</section>
+
+<!-- ============ 5 y 6 ============ -->
+<section>
+  <h2><span class="n">5</span>Configurar el Router A (el del PC host)</h2>
+  <p>Con PuTTY conectado al Router A, escriban esto línea por línea. Lo que va después de <span style="color:#7f8ea3">!</span> es explicación, no lo escriban. Se puede pegar en PuTTY con clic derecho.</p>
+  <pre><span class="p">Router#</span> configure terminal
+hostname RouterA                        <span class="c">! le pone nombre (cambia el prompt)</span>
+no ip domain-lookup                     <span class="c">! si escriben mal un comando, no se queda "buscándolo"</span>
+line console 0
+ logging synchronous                    <span class="c">! los avisos no cortan lo que están escribiendo</span>
+ exit
+interface GigabitEthernet0/0            <span class="c">! el puerto que va al PC host (LAN A)</span>
+ description LAN A - PC host
+ ip address 192.168.1.1 255.255.255.0   <span class="c">! la puerta de enlace del PC host</span>
+ no shutdown                            <span class="c">! encender el puerto</span>
+ exit
+interface GigabitEthernet0/1            <span class="c">! el puerto que va al Router B (WAN)</span>
+ description WAN hacia RouterB
+ ip address 10.0.0.1 255.255.255.252    <span class="c">! /30: solo dos direcciones, una por router</span>
+ no shutdown
+ exit
+ip route 192.168.2.0 255.255.255.0 10.0.0.2   <span class="c">! "para llegar a la LAN B, mándalo al Router B"</span>
+end
+<span class="p">RouterA#</span> write memory                     <span class="c">! guardar (opcional; preguntar al profe)</span></pre>
+  <div class="box ojo"><span class="t">Si el router tiene puertos de switch</span>
+    <p>Los puertos de switch <b>no llevan IP</b>: ya están todos en la VLAN 1. La IP de la LAN va en la interfaz virtual <code>Vlan1</code>, y el PC se conecta a <b>cualquier</b> puerto de switch. La WAN va en el puerto que <b>no</b> es de switch (en el ejemplo, <code>GigabitEthernet0/0/0</code>). Cambien solo la parte de las interfaces:</p>
+  </div>
+  <pre>interface range GigabitEthernet0/1/0 - 3   <span class="c">! los puertos de switch (nombres según show ip interface brief)</span>
+ switchport access vlan 1               <span class="c">! que estén en la VLAN 1 (ya viene así)</span>
+ no shutdown
+ exit
+interface Vlan1                         <span class="c">! la LAN: la IP va aquí</span>
+ description LAN A - PC host
+ ip address 192.168.1.1 255.255.255.0
+ no shutdown
+ exit
+interface GigabitEthernet0/0/0          <span class="c">! el puerto ruteado: la WAN hacia el Router B</span>
+ description WAN hacia RouterB
+ ip address 10.0.0.1 255.255.255.252
+ no shutdown
+ exit</pre>
+  <p>Si <code>interface range</code> da error, hagan lo mismo puerto por puerto (<code>interface GigabitEthernet0/1/0</code>, <code>no shutdown</code>, <code>exit</code>…). La <code>Vlan1</code> solo queda <i>up</i> cuando hay un PC conectado y encendido en alguno de los puertos de switch.</p>
+  <p>Después de cada <code>no shutdown</code> puede aparecer un aviso como <code>%LINK-3-UPDOWN … changed state to down</code>. Es normal mientras no haya cable: el puerto ya está encendido, pero no tiene nada conectado.</p>
+
+</section>
+
+<section>
+  <h2><span class="n">6</span>Configurar el Router B (el del PC cliente)</h2>
+  <p>Cierren PuTTY, pasen el cable de consola al Router B (el número COM es el mismo si usan el mismo PC y el mismo USB) y vuelvan a abrir PuTTY. Los comandos son los mismos, pero con las direcciones del otro lado:</p>
+  <pre><span class="p">Router#</span> configure terminal
+hostname RouterB
+no ip domain-lookup
+line console 0
+ logging synchronous
+ exit
+interface GigabitEthernet0/0
+ description LAN B - PC cliente
+ ip address 192.168.2.1 255.255.255.0
+ no shutdown
+ exit
+interface GigabitEthernet0/1
+ description WAN hacia RouterA
+ ip address 10.0.0.2 255.255.255.252
+ no shutdown
+ exit
+ip route 192.168.1.0 255.255.255.0 10.0.0.1   <span class="c">! "para llegar a la LAN A, mándalo al Router A"</span>
+end
+<span class="p">RouterB#</span> write memory</pre>
+  <div class="box info"><span class="t">Lo único que cambia entre A y B</span>
+    <p>El nombre, la IP de la LAN (<code>.1.1</code> ↔ <code>.2.1</code>), la IP de la WAN (<code>10.0.0.1</code> ↔ <code>10.0.0.2</code>) y la ruta: cada router apunta a la LAN del otro, a través de la IP WAN del otro. Si el Router B también tiene puertos de switch, la IP <code>192.168.2.1</code> va en su <code>Vlan1</code>, igual que en el recuadro del paso 5.</p>
+  </div>
+</section>
+
+<!-- ============ 7 y 8 ============ -->
+<section>
+  <h2><span class="n">7</span>Conectar los cables Ethernet</h2>
+  <table>
+    <tr><th>Cable</th><th>Desde</th><th>Hasta</th></tr>
+    <tr><td>1</td><td>PC host, puerto Ethernet</td><td>Router A, <b>G0/0</b> (LAN) — o cualquier puerto de switch si el router los tiene</td></tr>
+    <tr><td>2</td><td>Router A, <b>G0/1</b> (WAN)</td><td>Router B, <b>G0/1</b> (WAN) — cruzado si son FastEthernet</td></tr>
+    <tr><td>3</td><td>Router B, <b>G0/0</b> (LAN) — o un puerto de switch</td><td>PC cliente, puerto Ethernet</td></tr>
+  </table>
+  <p>Cuando un cable está bien, se encienden las luces del puerto en los dos extremos. En PuTTY aparece <code>%LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0, changed state to up</code>.</p>
+
+  <section class="cont">
+  <h2><span class="n">8</span>Poner la IP en cada PC</h2>
+  <p>En cada PC: <b>Configuración → Red e Internet → Ethernet → Asignación de IP → Editar → Manual → IPv4 activado</b>. También sirve el camino clásico: <kbd>Win</kbd>+<kbd>R</kbd>, <code>ncpa.cpl</code>, clic derecho en <i>Ethernet</i> → <i>Propiedades</i> → <i>Protocolo de Internet versión 4 (TCP/IPv4)</i> → <i>Usar la siguiente dirección IP</i>.</p>
+  <div class="two">
+    <table>
+      <tr><th colspan="2">PC host</th></tr>
+      <tr><td>Dirección IP</td><td><code>192.168.1.10</code></td></tr>
+      <tr><td>Máscara</td><td><code>255.255.255.0</code></td></tr>
+      <tr><td>Puerta de enlace</td><td><code>192.168.1.1</code></td></tr>
+      <tr><td>DNS</td><td>vacío</td></tr>
+    </table>
+    <table>
+      <tr><th colspan="2">PC cliente</th></tr>
+      <tr><td>Dirección IP</td><td><code>192.168.2.10</code></td></tr>
+      <tr><td>Máscara</td><td><code>255.255.255.0</code></td></tr>
+      <tr><td>Puerta de enlace</td><td><code>192.168.2.1</code></td></tr>
+      <tr><td>DNS</td><td>vacío</td></tr>
+    </table>
+  </div>
+  <p><b>Firewall de Windows.</b> Por defecto Windows no responde al ping y puede bloquear el juego. En cada PC, abran <b>PowerShell como administrador</b> y escriban:</p>
+  <pre>New-NetFirewallRule -DisplayName "LAN Shooter - ping" -Direction Inbound -Protocol ICMPv4 -IcmpType 8 -Action Allow
+New-NetFirewallRule -DisplayName "LAN Shooter - juego UDP 9999" -Direction Inbound -Protocol UDP -LocalPort 9999 -Action Allow</pre>
+  <p>Si la primera vez que abren el juego Windows pregunta si permite el acceso a la red, acepten en <b>redes privadas y públicas</b> (una red sin internet suele quedar como “pública”).</p>
+  </section>
+</section>
+
+<!-- ============ 9 y 10 ============ -->
+<section>
+  <h2><span class="n">9</span>Verificar</h2>
+  <h3>En cada router (PuTTY)</h3>
+  <pre><span class="p">RouterA#</span> show ip interface brief
+<span class="o">GigabitEthernet0/0   192.168.1.1   YES manual </span><span class="g">up                    up</span>
+<span class="o">GigabitEthernet0/1   10.0.0.1      YES manual </span><span class="g">up                    up</span>
+<span class="p">RouterA#</span> show ip route
+<span class="o">C    10.0.0.0/30 is directly connected, GigabitEthernet0/1
+C    192.168.1.0/24 is directly connected, GigabitEthernet0/0</span>
+<span class="g">S    192.168.2.0/24 [1/0] via 10.0.0.2</span>              <span class="c">! la ruta estática</span>
+<span class="p">RouterA#</span> ping 10.0.0.2                      <span class="c">! el otro router</span>
+<span class="g">!!!!!</span>
+<span class="p">RouterA#</span> ping 192.168.2.10                  <span class="c">! el PC cliente</span>
+<span class="g">!!!!!</span></pre>
+  <p>En el ping de un router, cada <code>!</code> es una respuesta y cada <code>.</code> una que no llegó. Es normal que el <b>primer</b> ping salga <code>.!!!!</code>: el router está averiguando la dirección física (ARP) del vecino.</p>
+
+  <h3>En los PC (Símbolo del sistema o PowerShell)</h3>
+  <pre><span class="p">C:\&gt;</span> ping 192.168.1.1            <span class="c">! desde el host: su router</span>
+<span class="p">C:\&gt;</span> ping 192.168.2.10           <span class="c">! desde el host: el cliente, cruzando los dos routers</span>
+<span class="o">Respuesta desde 192.168.2.10: bytes=32 tiempo=1ms </span><span class="g">TTL=126</span>
+<span class="p">C:\&gt;</span> tracert 192.168.2.10
+<span class="o">  1    &lt;1 ms   192.168.1.1
+  2     1 ms   10.0.0.2
+  3     1 ms   192.168.2.10</span></pre>
+  <p>El <b>TTL=126</b> confirma que el paquete pasó por los dos routers: Windows lo manda con 128 y cada router le resta uno. El <code>tracert</code> muestra los saltos: el Router A, el Router B (por su IP WAN) y el otro PC.</p>
+
+  <section class="cont">
+  <h2><span class="n">10</span>Jugar</h2>
+  <ol>
+    <li>En el <b>PC host</b>: abrir el juego, escribir un nombre y <b>Crear partida (Host)</b>. El menú muestra “Tu IP en la red local: 192.168.1.10”.</li>
+    <li>En el <b>PC cliente</b>: nombre, IP <code>192.168.1.10</code>, puerto <code>9999</code>, <b>Unirse</b>.</li>
+    <li>El host ve al cliente en la sala de espera y pulsa <b>Iniciar partida</b>.</li>
+    <li>Con <kbd>F3</kbd>, el cliente ve “Servidor: 192.168.1.10:9999” y la latencia real a través de los dos routers. Es la captura ideal para el informe (sección “Prueba con equipos físicos”).</li>
+  </ol>
+  </section>
+</section>
+
+<!-- ============ 11 ============ -->
+<section>
+  <h2><span class="n">11</span>Si algo falla</h2>
+  <p>Vayan del equipo más cercano al más lejano: primero el PC con su router, luego entre routers y al final el otro PC.</p>
+  <table>
+    <tr><th style="width:36%">Qué pasa</th><th>Qué revisar</th></tr>
+    <tr><td>PuTTY abre la ventana negra pero no sale nada</td><td>Pulsar <kbd>Enter</kbd> varias veces; revisar que el router esté encendido, que el cable esté en <i>CONSOLE</i> (no en un puerto Ethernet) y que el COM sea el del Administrador de dispositivos.</td></tr>
+    <tr><td>Salen símbolos raros</td><td>La velocidad no es 9600 (o alguien la cambió en el router).</td></tr>
+    <tr><td>PuTTY dice “Unable to open connection to COM3”</td><td>El número COM es otro, o el puerto está abierto en otra ventana de PuTTY o en el script.</td></tr>
+    <tr><td><code>% Invalid input detected</code> en <code>interface …</code></td><td>El nombre de la interfaz no existe en ese modelo: usen el que mostró <code>show ip interface brief</code>.</td></tr>
+    <tr><td><code>% IP addresses may not be configured on L2 links</code></td><td>Ese puerto es de switch: la IP va en <code>interface Vlan1</code> (recuadro del paso 5).</td></tr>
+    <tr><td>Interfaz <i>administratively down</i></td><td>Falta <code>no shutdown</code> dentro de esa interfaz.</td></tr>
+    <tr><td>Interfaz <i>down down</i></td><td>El cable no está, está en otro puerto, o es del tipo equivocado (cruzado/directo). El equipo del otro lado debe estar encendido.</td></tr>
+    <tr><td>El PC no hace ping a su router</td><td>IP o máscara del PC mal escritas, el cable va a otro puerto del router, o el Wi-Fi está usando la misma red (apáguenlo).</td></tr>
+    <tr><td>Un router no hace ping al otro</td><td>Las IP WAN deben ser <code>10.0.0.1</code> y <code>10.0.0.2</code> con máscara <code>255.255.255.252</code>; revisar el cable entre routers.</td></tr>
+    <tr><td>El PC llega a su router pero no al otro PC</td><td>Falta la ruta estática en algún router (<code>show ip route</code> debe tener la <b>S</b>), falta la puerta de enlace en algún PC, o el firewall del otro PC bloquea el ping.</td></tr>
+    <tr><td>El ping funciona pero el juego no conecta</td><td>Firewall del PC host: falta permitir UDP 9999. Revisar que el cliente escriba <code>192.168.1.10</code> y el puerto <code>9999</code>.</td></tr>
+  </table>
+
+  <h3>Al terminar la práctica</h3>
+  <ul>
+    <li>En los PC: volver a poner la IP en <b>Obtener una dirección IP automáticamente</b>, borrar las dos reglas del firewall y volver a encender el Wi-Fi.</li>
+    <li>En los routers: si guardaron con <code>write memory</code>, la configuración queda aunque los apaguen. Si el profesor pide dejarlos limpios: <code>write erase</code> y luego <code>reload</code> (contestar <i>no</i> si pregunta si guarda).</li>
+  </ul>
+
+  <div class="avoid" style="break-inside:avoid">
+  <h3>Anexo: si los routers se unen por un cable serie</h3>
+  <p>Si en lugar de Ethernet el profesor les da un cable serie entre los routers (interfaces <code>Serial0/0/0</code>), cambia la WAN: en los dos routers se usa <code>interface Serial0/0/0</code> con las mismas IP 10.0.0.x, y <b>solo en el router donde está el extremo DCE del cable</b> se agrega <code>clock rate 64000</code>. Para saber cuál es: <code>show controllers serial 0/0/0</code> dice <i>DCE</i> o <i>DTE</i>. El script lo hace solo si le dicen que la WAN es <code>Serial0/0/0</code>.</p>
+  </div>
+</section>
+
+<!-- ============ 12 ============ -->
+<section>
+  <h2><span class="n">12</span>Atajo: los scripts del proyecto</h2>
+  <p>En la carpeta <code>tools</code> del repositorio hay dos scripts que hacen <b>exactamente</b> lo de los pasos 5, 6 y 8. Sirven para no escribir todo a mano el día de la prueba, pero conviene haberlo hecho una vez con PuTTY para poder explicarlo en la sustentación.</p>
+
+  <h3>Configurar un router: <code>tools\configurar-router.bat</code></h3>
+  <ol>
+    <li>Conecten el cable de consola al router y <b>cierren PuTTY</b> (el puerto COM solo lo puede usar un programa a la vez).</li>
+    <li>Doble clic en <code>configurar-router.bat</code>. Pregunta si es el Router <b>A</b> o el <b>B</b>.</li>
+    <li>Encuentra solo el puerto COM (si hay varios, pregunta cuál), lo abre a 9600 8N1 sin control de flujo, pulsa Enter, contesta “no” al asistente inicial y entra a <code>enable</code>.</li>
+    <li>Lee <code>show ip interface brief</code> y <code>show interfaces switchport</code> y propone cuál puerto es la LAN y cuál la WAN. Si el router tiene puertos de switch, propone <code>Vlan1</code> para la LAN y el puerto ruteado para la WAN. Con Enter se acepta; con <kbd>n</kbd> se escriben a mano.</li>
+    <li>Envía los comandos del paso 5 o 6, avisa si el router rechaza alguno y pregunta si guardar con <code>write memory</code>.</li>
+    <li>Verifica: que las interfaces estén <i>up/up</i>, que esté la ruta estática y si el otro router responde al ping.</li>
+  </ol>
+  <pre><span class="o">== Despertando el router (Enter)</span>
+<span class="g">   !!  El router ofrece el asistente inicial: se contesta "no".
+   OK  Router listo en modo privilegiado (#).</span>
+<span class="o">Propuesta:  LAN (cable al PC) = GigabitEthernet0/0    WAN (cable al otro router) = GigabitEthernet0/1
+¿Es correcto? Enter = sí, n = escribirlas yo:
+== Configurando el RouterA</span>
+<span class="g">   OK  El router aceptó todos los comandos.
+   OK  GigabitEthernet0/0 está up/up.
+   OK  Ruta estática hacia 192.168.2.0/24 presente.</span></pre>
+  <p>Lo que respondió el router queda guardado en <code>tools\registros\</code>: sirve como evidencia para el informe.</p>
+
+  <h3>Configurar un PC: <code>tools\configurar-pc.bat</code></h3>
+  <ol>
+    <li>Doble clic y elegir <b>1 = host</b>, <b>2 = cliente</b> o <b>3 = restaurar</b>. Windows pide permiso de administrador.</li>
+    <li>Pone la IP del paso 8 en el adaptador Ethernet, agrega las rutas hacia la otra LAN por su router y abre el firewall para el ping y el UDP 9999.</li>
+    <li>Avisa si el Wi-Fi está usando la misma red y prueba ping al router y al otro PC.</li>
+    <li>Con <b>3 = restaurar</b> deja el Ethernet en automático y borra las reglas del firewall.</li>
+  </ol>
+  <div class="box info"><span class="t">Una diferencia con el paso 8</span>
+    <p>El script no pone “puerta de enlace”: agrega dos rutas (hacia la otra LAN y hacia la WAN) que pasan por el router. El resultado para el juego es el mismo, pero así el PC no pierde el internet de otra conexión si la tiene.</p>
+  </div>
+  <div class="box ojo"><span class="t">Si Windows no deja ejecutarlo</span>
+    <p>Si sale un aviso azul de “Windows protegió su PC”: <i>Más información → Ejecutar de todas formas</i>. Si dice que la ejecución de scripts está deshabilitada, usen siempre los <code>.bat</code>, que ya lo resuelven.</p>
+  </div>
+
+</section>
+
+</body>
+</html>
