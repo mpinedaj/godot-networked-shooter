@@ -74,7 +74,9 @@ function Read-Clave([string]$texto) {
     return [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
 }
 
-function Get-Comandos([string]$r, [string]$lan, [string]$wan, [bool]$wanEsDce) {
+## $puertosSwitch: puertos de switch del router (si los tiene). En ese caso la LAN
+## es una interfaz Vlan: la IP va en ella y el PC se conecta a cualquier puerto de switch.
+function Get-Comandos([string]$r, [string]$lan, [string]$wan, [bool]$wanEsDce, [string[]]$puertosSwitch = @()) {
     $p = $Plan[$r]
     $c = @(
         'configure terminal'
@@ -83,6 +85,13 @@ function Get-Comandos([string]$r, [string]$lan, [string]$wan, [bool]$wanEsDce) {
         'line console 0'
         ' logging synchronous'             # Los avisos no cortan lo que uno está escribiendo.
         ' exit'
+    )
+    if ($lan -match '^(?i)vlan\s*(\d+)$') {
+        foreach ($sp in $puertosSwitch) {
+            $c += @("interface $sp", " switchport access vlan $($matches[1])", ' no shutdown', ' exit')
+        }
+    }
+    $c += @(
         "interface $lan"
         " description $($p.DescLan)"
         " ip address $($p.Lan) $MascaraLan"
@@ -109,7 +118,8 @@ if ($SoloMostrar) {
     $lan = if ($InterfazLan) { $InterfazLan } else { 'GigabitEthernet0/0' }
     $wan = if ($InterfazWan) { $InterfazWan } else { 'GigabitEthernet0/1' }
     Write-Host "Comandos para el Router $Router (LAN: $lan, WAN: $wan):" -ForegroundColor Cyan
-    Get-Comandos $Router $lan $wan $false | ForEach-Object { Write-Host "  $_" }
+    $ejemplo = if ($lan -match '^(?i)vlan') { @('<puerto de switch>') } else { @() }
+    Get-Comandos $Router $lan $wan $false $ejemplo | ForEach-Object { Write-Host "  $_" }
     return
 }
 
@@ -235,19 +245,37 @@ try {
     [void](Send-Comando 'terminal length 0')
     $out = Send-Comando 'show ip interface brief'
     $interfaces = @(foreach ($linea in ($out -split "`r?`n")) {
-        if ($linea -match '^((?:Gigabit|Fast)?Ethernet\S+|Serial\S+)\s+(\S+)\s+\S+\s+\S+\s+(administratively down|up|down)\s+(up|down)') {
+        if ($linea -match '^((?:Gigabit|Fast)?Ethernet\S+|Serial\S+|Vlan\d+)\s+(\S+)\s+\S+\s+\S+\s+(administratively down|up|down)\s+(up|down)') {
             [pscustomobject]@{ Interfaz = $matches[1]; IP = $matches[2]; Estado = $matches[3]; Protocolo = $matches[4] }
         }
     })
+    # Puertos de switch integrados (módulo EHWIC/HWIC o routers como el 1100/890):
+    # no llevan IP; la IP de la LAN va en la interfaz Vlan1.
+    $sw = Send-Comando 'show interfaces switchport'
+    $abrevSwitch = @([regex]::Matches($sw, '(?ms)^Name:\s*(\S+)\s*\r?\nSwitchport:\s*Enabled') | ForEach-Object { $_.Groups[1].Value })
+    foreach ($i in $interfaces) {
+        $abrev = ($i.Interfaz -replace '^GigabitEthernet', 'Gi' -replace '^FastEthernet', 'Fa' -replace '^Ethernet', 'Et')
+        $i | Add-Member NoteProperty Tipo $(if ($abrevSwitch -contains $abrev -or $abrevSwitch -contains $i.Interfaz) { 'switch' }
+                                            elseif ($i.Interfaz -match '^Vlan') { 'vlan' } else { 'ruteado' })
+    }
     Close-Linea
-    $interfaces | Format-Table -AutoSize | Out-String | Write-Host
-    $ethernet = @($interfaces | Where-Object { $_.Interfaz -match 'Ethernet' })
-    $lan = if ($InterfazLan) { $InterfazLan } elseif ($ethernet.Count -ge 1) { $ethernet[0].Interfaz } else { '' }
-    $wan = if ($InterfazWan) { $InterfazWan } elseif ($ethernet.Count -ge 2) { $ethernet[1].Interfaz } else { '' }
+    $interfaces | Format-Table Interfaz, Tipo, IP, Estado, Protocolo -AutoSize | Out-String | Write-Host
+    $puertosSwitch = @($interfaces | Where-Object { $_.Tipo -eq 'switch' } | ForEach-Object { $_.Interfaz })
+    $ruteados = @($interfaces | Where-Object { $_.Tipo -eq 'ruteado' -and $_.Interfaz -match 'Ethernet' })
+    if ($puertosSwitch.Count -gt 0) {
+        Write-Aviso "Este router tiene $($puertosSwitch.Count) puertos de switch: la IP de la LAN va en Vlan1 y el PC se conecta a cualquiera de ellos."
+        $lanAuto = 'Vlan1'
+        $wanAuto = if ($ruteados.Count -ge 1) { $ruteados[0].Interfaz } else { '' }
+    } else {
+        $lanAuto = if ($ruteados.Count -ge 1) { $ruteados[0].Interfaz } else { '' }
+        $wanAuto = if ($ruteados.Count -ge 2) { $ruteados[1].Interfaz } else { '' }
+    }
+    $lan = if ($InterfazLan) { $InterfazLan } else { $lanAuto }
+    $wan = if ($InterfazWan) { $InterfazWan } else { $wanAuto }
     Write-Host "Propuesta:  LAN (cable al PC) = $lan    WAN (cable al otro router) = $wan"
     $resp = Read-Respuesta '¿Es correcto? Enter = sí, n = escribirlas yo'
     if ($resp -match '^\s*n' -or -not $lan -or -not $wan) {
-        $lan = (Read-Respuesta 'Interfaz LAN, la que va al PC (p. ej. GigabitEthernet0/0)').Trim()
+        $lan = (Read-Respuesta 'Interfaz LAN, la que va al PC (p. ej. GigabitEthernet0/0, o Vlan1 si el PC va a un puerto de switch)').Trim()
         $wan = (Read-Respuesta 'Interfaz WAN, la que va al otro router (p. ej. GigabitEthernet0/1)').Trim()
     }
 
@@ -262,7 +290,7 @@ try {
     # 3) Configurar.
     Write-Paso "Configurando el $($p.Nombre)"
     $errores = @()
-    foreach ($cmd in (Get-Comandos $Router $lan $wan $dce)) {
+    foreach ($cmd in (Get-Comandos $Router $lan $wan $dce $puertosSwitch)) {
         $r = Send-Comando $cmd
         if ($r -match '(?m)^%\s') {
             $errores += "$($cmd.Trim())  ->  $(($r -split "`r?`n" | Where-Object { $_ -match '^%\s' } | Select-Object -First 1).Trim())"
@@ -294,6 +322,7 @@ try {
             $linea = ($out -split "`r?`n" | Where-Object { $_ -match ('^\S*' + [regex]::Escape($num) + '\s') } | Select-Object -First 1)
         }
         if ($linea -match '\s+up\s+up\s*$') { Write-Ok "$nombre está up/up." }
+        elseif ($linea -match 'down\s+down\s*$' -and $nombre -match '^(?i)vlan') { Write-Aviso "$nombre está down/down: se enciende cuando conecten el PC a un puerto de switch." }
         elseif ($linea -match 'down\s+down\s*$') { Write-Aviso "$nombre está down/down: falta el cable, o el equipo del otro lado está apagado." }
         else { Write-Aviso "$nombre : $($linea -replace '\s+', ' ')" }
     }

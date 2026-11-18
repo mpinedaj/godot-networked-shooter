@@ -246,6 +246,7 @@ GigabitEthernet0/2         unassigned      YES unset  administratively down down
     <li>En la parte de atrás del router, cada puerto Ethernet está marcado con su número (<i>GE 0/0</i>, <i>GE 0/1</i>, o <i>FE 0/0</i>…). Así saben dónde va cada cable.</li>
     <li><i>administratively down</i> significa “apagado a propósito”: los puertos de un router vienen apagados hasta que se les da <code>no shutdown</code>.</li>
     <li><code>Embedded-Service-Engine</code> es interna: no se usa.</li>
+    <li>Si aparece una <code>Vlan1</code> y varios puertos con tres números (por ejemplo <code>GigabitEthernet0/1/0</code> a <code>0/1/3</code>), el router tiene <b>puertos de switch</b>. Para confirmarlo: <code>show interfaces switchport</code> los lista con <i>Switchport: Enabled</i>. Vean el recuadro del paso 5.</li>
   </ul>
   <div class="box ojo"><span class="t">Si pide contraseña o ya tiene configuración</span>
     <p>Si al escribir <code>enable</code> pide <i>Password</i>, se la piden al profesor. Si el router ya tiene IPs de otro grupo, pueden verlas con <code>show running-config</code>; los comandos de esta guía les ponen encima las suyas. No borren la configuración del router (<code>write erase</code>) sin preguntar.</p>
@@ -275,6 +276,24 @@ interface GigabitEthernet0/1            <span class="c">! el puerto que va al Ro
 ip route 192.168.2.0 255.255.255.0 10.0.0.2   <span class="c">! "para llegar a la LAN B, mándalo al Router B"</span>
 end
 <span class="p">RouterA#</span> write memory                     <span class="c">! guardar (opcional; preguntar al profe)</span></pre>
+  <div class="box ojo"><span class="t">Si el router tiene puertos de switch</span>
+    <p>Los puertos de switch <b>no llevan IP</b>: ya están todos en la VLAN 1. La IP de la LAN va en la interfaz virtual <code>Vlan1</code>, y el PC se conecta a <b>cualquier</b> puerto de switch. La WAN va en el puerto que <b>no</b> es de switch (en el ejemplo, <code>GigabitEthernet0/0/0</code>). Cambien solo la parte de las interfaces:</p>
+  </div>
+  <pre>interface range GigabitEthernet0/1/0 - 3   <span class="c">! los puertos de switch (nombres según show ip interface brief)</span>
+ switchport access vlan 1               <span class="c">! que estén en la VLAN 1 (ya viene así)</span>
+ no shutdown
+ exit
+interface Vlan1                         <span class="c">! la LAN: la IP va aquí</span>
+ description LAN A - PC host
+ ip address 192.168.1.1 255.255.255.0
+ no shutdown
+ exit
+interface GigabitEthernet0/0/0          <span class="c">! el puerto ruteado: la WAN hacia el Router B</span>
+ description WAN hacia RouterB
+ ip address 10.0.0.1 255.255.255.252
+ no shutdown
+ exit</pre>
+  <p>Si <code>interface range</code> da error, hagan lo mismo puerto por puerto (<code>interface GigabitEthernet0/1/0</code>, <code>no shutdown</code>, <code>exit</code>…). La <code>Vlan1</code> solo queda <i>up</i> cuando hay un PC conectado y encendido en alguno de los puertos de switch.</p>
   <p>Después de cada <code>no shutdown</code> puede aparecer un aviso como <code>%LINK-3-UPDOWN … changed state to down</code>. Es normal mientras no haya cable: el puerto ya está encendido, pero no tiene nada conectado.</p>
 
 </section>
@@ -302,7 +321,7 @@ ip route 192.168.1.0 255.255.255.0 10.0.0.1   <span class="c">! "para llegar a l
 end
 <span class="p">RouterB#</span> write memory</pre>
   <div class="box info"><span class="t">Lo único que cambia entre A y B</span>
-    <p>El nombre, la IP de la LAN (<code>.1.1</code> ↔ <code>.2.1</code>), la IP de la WAN (<code>10.0.0.1</code> ↔ <code>10.0.0.2</code>) y la ruta: cada router apunta a la LAN del otro, a través de la IP WAN del otro.</p>
+    <p>El nombre, la IP de la LAN (<code>.1.1</code> ↔ <code>.2.1</code>), la IP de la WAN (<code>10.0.0.1</code> ↔ <code>10.0.0.2</code>) y la ruta: cada router apunta a la LAN del otro, a través de la IP WAN del otro. Si el Router B también tiene puertos de switch, la IP <code>192.168.2.1</code> va en su <code>Vlan1</code>, igual que en el recuadro del paso 5.</p>
   </div>
 </section>
 
@@ -311,9 +330,9 @@ end
   <h2><span class="n">7</span>Conectar los cables Ethernet</h2>
   <table>
     <tr><th>Cable</th><th>Desde</th><th>Hasta</th></tr>
-    <tr><td>1</td><td>PC host, puerto Ethernet</td><td>Router A, <b>G0/0</b> (LAN)</td></tr>
+    <tr><td>1</td><td>PC host, puerto Ethernet</td><td>Router A, <b>G0/0</b> (LAN) — o cualquier puerto de switch si el router los tiene</td></tr>
     <tr><td>2</td><td>Router A, <b>G0/1</b> (WAN)</td><td>Router B, <b>G0/1</b> (WAN) — cruzado si son FastEthernet</td></tr>
-    <tr><td>3</td><td>Router B, <b>G0/0</b> (LAN)</td><td>PC cliente, puerto Ethernet</td></tr>
+    <tr><td>3</td><td>Router B, <b>G0/0</b> (LAN) — o un puerto de switch</td><td>PC cliente, puerto Ethernet</td></tr>
   </table>
   <p>Cuando un cable está bien, se encienden las luces del puerto en los dos extremos. En PuTTY aparece <code>%LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0, changed state to up</code>.</p>
 
@@ -391,6 +410,7 @@ C    192.168.1.0/24 is directly connected, GigabitEthernet0/0</span>
     <tr><td>Salen símbolos raros</td><td>La velocidad no es 9600 (o alguien la cambió en el router).</td></tr>
     <tr><td>PuTTY dice “Unable to open connection to COM3”</td><td>El número COM es otro, o el puerto está abierto en otra ventana de PuTTY o en el script.</td></tr>
     <tr><td><code>% Invalid input detected</code> en <code>interface …</code></td><td>El nombre de la interfaz no existe en ese modelo: usen el que mostró <code>show ip interface brief</code>.</td></tr>
+    <tr><td><code>% IP addresses may not be configured on L2 links</code></td><td>Ese puerto es de switch: la IP va en <code>interface Vlan1</code> (recuadro del paso 5).</td></tr>
     <tr><td>Interfaz <i>administratively down</i></td><td>Falta <code>no shutdown</code> dentro de esa interfaz.</td></tr>
     <tr><td>Interfaz <i>down down</i></td><td>El cable no está, está en otro puerto, o es del tipo equivocado (cruzado/directo). El equipo del otro lado debe estar encendido.</td></tr>
     <tr><td>El PC no hace ping a su router</td><td>IP o máscara del PC mal escritas, el cable va a otro puerto del router, o el Wi-Fi está usando la misma red (apáguenlo).</td></tr>
@@ -405,8 +425,10 @@ C    192.168.1.0/24 is directly connected, GigabitEthernet0/0</span>
     <li>En los routers: si guardaron con <code>write memory</code>, la configuración queda aunque los apaguen. Si el profesor pide dejarlos limpios: <code>write erase</code> y luego <code>reload</code> (contestar <i>no</i> si pregunta si guarda).</li>
   </ul>
 
+  <div class="avoid" style="break-inside:avoid">
   <h3>Anexo: si los routers se unen por un cable serie</h3>
   <p>Si en lugar de Ethernet el profesor les da un cable serie entre los routers (interfaces <code>Serial0/0/0</code>), cambia la WAN: en los dos routers se usa <code>interface Serial0/0/0</code> con las mismas IP 10.0.0.x, y <b>solo en el router donde está el extremo DCE del cable</b> se agrega <code>clock rate 64000</code>. Para saber cuál es: <code>show controllers serial 0/0/0</code> dice <i>DCE</i> o <i>DTE</i>. El script lo hace solo si le dicen que la WAN es <code>Serial0/0/0</code>.</p>
+  </div>
 </section>
 
 <!-- ============ 12 ============ -->
@@ -419,7 +441,7 @@ C    192.168.1.0/24 is directly connected, GigabitEthernet0/0</span>
     <li>Conecten el cable de consola al router y <b>cierren PuTTY</b> (el puerto COM solo lo puede usar un programa a la vez).</li>
     <li>Doble clic en <code>configurar-router.bat</code>. Pregunta si es el Router <b>A</b> o el <b>B</b>.</li>
     <li>Encuentra solo el puerto COM (si hay varios, pregunta cuál), lo abre a 9600 8N1 sin control de flujo, pulsa Enter, contesta “no” al asistente inicial y entra a <code>enable</code>.</li>
-    <li>Lee <code>show ip interface brief</code> y propone cuál puerto es la LAN y cuál la WAN. Con Enter se acepta; con <kbd>n</kbd> se escriben a mano.</li>
+    <li>Lee <code>show ip interface brief</code> y <code>show interfaces switchport</code> y propone cuál puerto es la LAN y cuál la WAN. Si el router tiene puertos de switch, propone <code>Vlan1</code> para la LAN y el puerto ruteado para la WAN. Con Enter se acepta; con <kbd>n</kbd> se escriben a mano.</li>
     <li>Envía los comandos del paso 5 o 6, avisa si el router rechaza alguno y pregunta si guardar con <code>write memory</code>.</li>
     <li>Verifica: que las interfaces estén <i>up/up</i>, que esté la ruta estática y si el otro router responde al ping.</li>
   </ol>
