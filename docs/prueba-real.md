@@ -41,6 +41,10 @@ Es el mismo montaje de la simulación. Cablear PC1 – Router A – Router B –
 aplicar los comandos de [`simulacion-packet-tracer.md`](simulacion-packet-tracer.md).
 En el juego, el cliente escribe **`192.168.1.10`**.
 
+Para la sustentación con dos PC (sin switches) y el cable de consola, la guía
+[`guia-routers-sustentacion.docx`](guia-routers-sustentacion.docx) recorre el
+montaje, la configuración y la verificación paso a paso.
+
 ### Caso B: routers caseros (TP-Link, etc.)
 
 Un router casero siempre hace NAT en su puerto WAN y no deja quitarlo, así que

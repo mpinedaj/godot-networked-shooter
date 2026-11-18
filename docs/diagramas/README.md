@@ -25,12 +25,15 @@ Tracer según [`../simulacion-packet-tracer.md`](../simulacion-packet-tracer.md)
 |---|---|
 | `01-topologia-fisica.drawio` | Equipos, modelos, puertos y tipo de cable (directo o cruzado) de cada enlace. |
 | `02-topologia-logica.drawio` | Subredes, direcciones IP, rutas estáticas y el recorrido de un paquete del juego hasta el servidor. |
+| `03-montaje-sustentacion.drawio` | Montaje real de la sustentación: dos PC, dos routers y el cable de consola. Sin switches. |
+| `04-topologia-logica-sustentacion.drawio` | Direccionamiento, rutas estáticas y camino del paquete en el montaje de dos PC. |
 
 ## `estados/` — máquina de estados
 
 | Archivo | Qué muestra |
 |---|---|
 | `01-estados-red.drawio` | Estados de la conexión (`NetworkManager`): desconectado, servidor escuchando, cliente conectando y cliente en partida, con sus disparadores y las dos formas de fallo. |
+| `02-decision-configuracion.drawio` | Árbol de decisión para la sustentación: Cisco IOS con CLI o router con NAT, y qué revisar si no sale el prompt por consola. |
 
 La máquina de estados de la **partida** (`LOBBY` → `PLAYING` → `ENDED`) no está
 aquí: se dibuja en `secuencia/03-eventos-cierre.drawio`.
